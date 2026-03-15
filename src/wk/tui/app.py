@@ -299,6 +299,7 @@ class WkApp(App):
     CSS = APP_CSS
 
     shell_commands: list[str]
+    _worktrees: list[Worktree]
 
     def __init__(self, worktrees: list[Worktree], config: WkConfig) -> None:
         super().__init__()
