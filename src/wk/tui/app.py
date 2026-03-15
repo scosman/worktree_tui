@@ -4,7 +4,16 @@ from textual.app import App, Binding
 from textual.binding import BindingsMap
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Header, Input, Label, ListView
+from textual.widgets import (
+    Button,
+    Footer,
+    Header,
+    Input,
+    Label,
+    ListView,
+    LoadingIndicator,
+)
+from textual.worker import Worker, WorkerState
 
 from wk.actions import (
     action_delete,
@@ -17,6 +26,38 @@ from wk.config import WkConfig
 from wk.tui.theme import APP_CSS
 from wk.tui.worktree_list import WorktreeList
 from wk.worktree import Worktree, WtCommandError
+
+
+class LoadingScreen(ModalScreen[None]):
+    """Modal screen showing a loading spinner during long operations."""
+
+    DEFAULT_CSS = """
+    LoadingScreen {
+        align: center middle;
+    }
+
+    LoadingScreen > Vertical {
+        width: auto;
+        height: auto;
+        background: $background;
+        border: thick $accent;
+        padding: 1 3;
+    }
+
+    LoadingScreen LoadingIndicator {
+        width: 3;
+        height: 1;
+    }
+    """
+
+    def __init__(self, message: str = "Working...") -> None:
+        super().__init__()
+        self._message = message
+
+    def compose(self):
+        with Vertical():
+            yield Label(self._message)
+            yield LoadingIndicator()
 
 
 class NewWorktreeScreen(ModalScreen[str | None]):
@@ -346,11 +387,33 @@ class WkApp(App):
         if name is None:
             return  # Cancelled
 
+        self._pending_new_name = name
+        self.push_screen(LoadingScreen("Creating worktree..."))
+        self.run_worker(self._do_create, thread=True, name="create")
+
+    def _do_create(self) -> tuple[bool, list[str] | str]:
+        """Execute worktree creation in background thread.
+
+        Returns (success, commands_or_error).
+        """
         try:
-            self.shell_commands = action_new(name, self._config)
-            self.exit()
+            commands = action_new(self._pending_new_name, self._config)
+            return (True, commands)
         except WtCommandError as e:
-            self._show_error(f"Failed to create worktree: {e.stderr.strip()}")
+            return (False, e.stderr.strip())
+
+    def _on_create_done(self, success: bool, data: list[str] | str) -> None:
+        """Handle create worker completion on main thread."""
+        # Only pop if we have more than just the base screen
+        if len(self.screen_stack) > 1:
+            self.pop_screen()  # Remove loading screen
+        if success:
+            # On success, data is always list[str]
+            self.shell_commands = data if isinstance(data, list) else []
+            self.exit()
+        else:
+            # On error, data is the error message string
+            self._show_error(f"Failed to create worktree: {data}")
 
     def _show_delete_confirm(self, worktree: Worktree) -> None:
         """Show delete confirmation dialog."""
@@ -373,20 +436,46 @@ class WkApp(App):
         if worktree is None:
             return
 
+        self._pending_delete_force = force
+        self._pending_delete_worktree_name = worktree.name
+        self.push_screen(LoadingScreen("Deleting worktree..."))
+        self.run_worker(self._do_delete, thread=True, name="delete")
+
+    def _do_delete(self) -> tuple[bool, str | None, list[Worktree] | None]:
+        """Execute worktree deletion in background thread.
+
+        Returns (success, error_message, updated_worktrees).
+        """
         try:
-            action_delete(worktree.name, force=force)
-            # Refresh the list by re-fetching worktrees
+            action_delete(
+                self._pending_delete_worktree_name, force=self._pending_delete_force
+            )
             from wk.worktree import list_worktrees
 
-            self._worktrees = list_worktrees()
-            # Defer DOM manipulation to avoid hanging inside push_screen callback
-            self.call_later(self._refresh_worktree_list)
+            return (True, None, list_worktrees())
         except WtCommandError as e:
-            self._show_delete_error(worktree.name, e.stderr.strip())
+            return (False, e.stderr.strip(), None)
+
+    def _on_delete_done(
+        self, success: bool, error_msg: str | None, worktrees: list[Worktree] | None
+    ) -> None:
+        """Handle delete worker completion on main thread."""
+        # Only pop if we have more than just the base screen
+        if len(self.screen_stack) > 1:
+            self.pop_screen()  # Remove loading screen
+        if success:
+            # worktrees is never None on success
+            if worktrees is not None:
+                self._worktrees = worktrees
+                self._refresh_worktree_list()
+        else:
+            # error_msg is never None on failure
+            self._show_delete_error(
+                self._pending_delete_worktree_name, error_msg or "Unknown error"
+            )
 
     def _show_delete_error(self, worktree_name: str, error_msg: str) -> None:
         """Show delete error with force option."""
-        self._pending_delete_name = worktree_name
         self.push_screen(
             DeleteErrorScreen(f"Failed to delete: {error_msg}"),
             self._handle_force_delete_result,
@@ -397,21 +486,36 @@ class WkApp(App):
         if not force:
             return  # Cancelled
 
-        list_widget = self.query_one(WorktreeList)
-        worktree = list_widget.selected_worktree
-        if worktree is None:
-            return
+        self.push_screen(LoadingScreen("Force deleting worktree..."))
+        self.run_worker(self._do_force_delete, thread=True, name="force_delete")
 
+    def _do_force_delete(self) -> tuple[bool, str | None, list[Worktree] | None]:
+        """Execute force delete in background thread.
+
+        Returns (success, error_message, updated_worktrees).
+        """
         try:
-            action_delete(worktree.name, force=True)
-            # Refresh the list by re-fetching worktrees
+            action_delete(self._pending_delete_worktree_name, force=True)
             from wk.worktree import list_worktrees
 
-            self._worktrees = list_worktrees()
-            self.call_later(self._refresh_worktree_list)
+            return (True, None, list_worktrees())
         except WtCommandError as e:
-            # Force also failed, show generic error
-            self._show_error(f"Force delete failed: {e.stderr.strip()}")
+            return (False, e.stderr.strip(), None)
+
+    def _on_force_delete_done(
+        self, success: bool, error_msg: str | None, worktrees: list[Worktree] | None
+    ) -> None:
+        """Handle force delete worker completion on main thread."""
+        # Only pop if we have more than just the base screen
+        if len(self.screen_stack) > 1:
+            self.pop_screen()  # Remove loading screen
+        if success:
+            # worktrees is never None on success
+            if worktrees is not None:
+                self._worktrees = worktrees
+                self._refresh_worktree_list()
+        else:
+            self._show_error(f"Force delete failed: {error_msg or 'Unknown error'}")
 
     def _refresh_worktree_list(self) -> None:
         """Replace the worktree list widget with a fresh one."""
@@ -422,6 +526,26 @@ class WkApp(App):
     def _show_error(self, message: str) -> None:
         """Show an error notification."""
         self.push_screen(ErrorNotificationScreen(message))
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        """Handle worker state changes."""
+        worker = event.worker
+        if worker.state != WorkerState.SUCCESS:
+            return  # Only handle successful completion
+
+        result = worker.result
+        if result is None:
+            return  # Should not happen for our workers
+
+        if worker.name == "create" and isinstance(result, tuple):
+            success, data = result
+            self._on_create_done(success, data)
+        elif worker.name == "delete" and isinstance(result, tuple):
+            success, error_msg, worktrees = result
+            self._on_delete_done(success, error_msg, worktrees)
+        elif worker.name == "force_delete" and isinstance(result, tuple):
+            success, error_msg, worktrees = result
+            self._on_force_delete_done(success, error_msg, worktrees)
 
 
 def run_app(worktrees: list[Worktree], config: WkConfig) -> list[str]:
