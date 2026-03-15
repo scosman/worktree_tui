@@ -34,15 +34,14 @@ Configure [Worktrunk](https://worktrunk.dev) following their guide to start. You
 
 ### `wk` Configuration
 
-In the wk config you can add custom commands which will appear as features in the `wk` TUI:
-
-File `PROJECT_ROOT/.config/wk.yml`
+In `PROJECT_ROOT/.config/wk.yml` you can add custom commands which will appear as features in the `wk` TUI:
 
 **Fields**
  - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI. Useful for tools like tmux/zellij.
  - restart_workspace_cmd: a command to restart a workspace (eg, killing a tmux session). If missing, restart option won't appear in TUI.
  - custom_commands: a set of custom commands you can invoke from the TUI, from the provided shortcut character. Eg: run tests on a worktree.
 
+**Example `PROJECT_ROOT/.config/wk.yml`**
 ```yaml
 open_workspace_cmd: tmux new-session ...
 restart_workspace_cmd: tmux kill-session ... && tmux new-session ...
