@@ -32,6 +32,15 @@ def action_restart(worktree: Worktree, config: WkConfig) -> list[str]:
         - ["cd <path>"] if restart_workspace_cmd is not configured (fallback to jump).
     """
 
+def action_custom_command(worktree: Worktree, command: str) -> list[str]:
+    """Build shell commands to run a custom command in a worktree directory.
+
+    Always cd's into the worktree first, then runs the command.
+
+    Returns:
+        - ["cd <path>", "<command>"]
+    """
+
 def action_new(name: str, config: WkConfig) -> list[str]:
     """Create a new worktree off HEAD and return launch commands.
 
@@ -94,3 +103,5 @@ The `open_workspace_cmd` is appended as a separate command (not joined with `&&`
 | 11 | `action_delete` calls `remove_worktree` | Unit: mock `remove_worktree`, assert called with name |
 | 12 | `action_delete` propagates `WtCommandError` on failure | Unit: mock `remove_worktree` raising, assert propagation |
 | 13 | `action_delete` returns `None` | Unit: assert return value is `None` |
+| 14 | `action_custom_command` returns cd + command | Unit: create `Worktree`, assert `["cd <path>", "<command>"]` |
+| 15 | `action_custom_command` shell-quotes paths with spaces | Unit: path with spaces, assert proper quoting |

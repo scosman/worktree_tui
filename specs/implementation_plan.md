@@ -54,3 +54,13 @@
 - [x] End-to-end manual test: `wk init zsh`, wrapper install, TUI launch, CLI commands
 
 > Depends on: all other components
+
+## Step 9: Custom Commands
+
+- [ ] Add `CustomCommand` dataclass and parsing to `config.py`
+- [ ] Add `action_custom_command()` to `actions.py`
+- [ ] Add dynamic custom command bindings and handlers to `tui/app.py` (including confirmation dialog)
+- [ ] Tests for config parsing, action, and TUI behavior
+- [ ] `uv run ./checks.sh` passes (lint, format, types, tests)
+
+> Depends on: config, actions, tui/app
