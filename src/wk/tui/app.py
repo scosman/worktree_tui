@@ -4,7 +4,7 @@ from textual.app import App, Binding
 from textual.binding import BindingsMap
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Header, Input, Label
+from textual.widgets import Button, Footer, Header, Input, Label, ListView
 
 from wk.actions import (
     action_delete,
@@ -261,11 +261,9 @@ class WkApp(App):
         self._config = config
         self.shell_commands = []
 
-        enter_label = "Launch" if config.open_workspace_cmd else "Jump"
         bindings = [
             Binding("q", "quit", "Quit"),
             Binding("escape", "quit", "Quit", show=False),
-            Binding("enter", "select", enter_label),
             Binding("j", "jump", "Jump", show=False),
             Binding("d", "delete", "Delete"),
             Binding("n", "new", "New"),
@@ -283,19 +281,15 @@ class WkApp(App):
         yield WorktreeList(self._worktrees)
         yield Footer()
 
-    def action_select(self) -> None:
-        """Handle Enter key - launch or show new worktree input."""
-        list_widget = self.query_one(WorktreeList)
-        worktree = list_widget.selected_worktree
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Handle Enter key on the worktree list."""
+        worktree = self.query_one(WorktreeList).selected_worktree
         if worktree is None:
-            # On "New Worktree" row - show new worktree input
             self._show_new_input()
         elif self._config.open_workspace_cmd:
-            # Launch mode: cd + run open command
             self.shell_commands = action_launch(worktree, self._config)
             self.exit()
         else:
-            # Jump mode: just cd
             self.shell_commands = action_jump(worktree)
             self.exit()
 

@@ -2,8 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import cast
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from textual.widgets import Input
@@ -250,27 +249,23 @@ class TestWkApp:
             assert list_widget.index == 1
 
     @pytest.mark.asyncio
-    async def test_action_select_launches(self) -> None:
-        """action_select on worktree row sets launch commands and exits."""
+    async def test_enter_launches(self) -> None:
+        """Enter on worktree row sets launch commands and exits."""
         worktrees = [WORKTREE_1]
         app = WkApp(worktrees, SAMPLE_CONFIG)
 
         async with app.run_test() as pilot:
-            # Call action directly (Enter key may be consumed by ListView)
-            exit_mock = MagicMock()
-            wk_app = cast(WkApp, pilot.app)
-            wk_app.exit = exit_mock  # type: ignore[method-assign]
-            wk_app.action_select()
+            await pilot.press("enter")
+            await pilot.pause()
             await pilot.pause()
 
-            exit_mock.assert_called_once()
-            assert len(app.shell_commands) == 2
-            assert app.shell_commands[0].startswith("cd")
-            assert app.shell_commands[1] == "code ."
+        assert len(app.shell_commands) == 2
+        assert app.shell_commands[0].startswith("cd")
+        assert app.shell_commands[1] == "code ."
 
     @pytest.mark.asyncio
-    async def test_action_select_on_new_worktree_opens_input(self) -> None:
-        """action_select on 'New Worktree' row opens input dialog."""
+    async def test_enter_on_new_worktree_opens_input(self) -> None:
+        """Enter on 'New Worktree' row opens input dialog."""
         worktrees = [WORKTREE_1]
         app = WkApp(worktrees, SAMPLE_CONFIG)
 
@@ -279,9 +274,7 @@ class TestWkApp:
             list_widget.index = 0  # Select "New Worktree"
             await pilot.pause()
 
-            # Call action directly
-            wk_app = cast(WkApp, pilot.app)
-            wk_app.action_select()
+            await pilot.press("enter")
             await pilot.pause()
             await pilot.pause()
 
@@ -442,11 +435,16 @@ class TestWkApp:
             assert not isinstance(pilot.app.screen, ConfirmDeleteScreen)
 
     @pytest.mark.asyncio
-    async def test_enter_binding_exists(self) -> None:
-        """Verify Enter key is bound to select action."""
+    async def test_enter_handled_by_list_view(self) -> None:
+        """Verify Enter triggers on_list_view_selected via ListView."""
         app = WkApp([WORKTREE_1], SAMPLE_CONFIG)
-        binding_keys = list(app._bindings.key_to_bindings.keys())
-        assert "enter" in binding_keys
+
+        async with app.run_test() as pilot:
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()
+
+        assert len(app.shell_commands) >= 1
 
 
 class TestWkAppWithMocks:
@@ -562,21 +560,18 @@ class TestWkAppNoConfig:
 
     @pytest.mark.asyncio
     async def test_launch_without_open_cmd(self) -> None:
-        """Launch without open_workspace_cmd only returns cd."""
+        """Enter without open_workspace_cmd only returns cd (jump mode)."""
         config = WkConfig(open_workspace_cmd=None, repo_root=Path("/repo"))
         worktrees = [WORKTREE_1]
         app = WkApp(worktrees, config)
 
         async with app.run_test() as pilot:
-            exit_mock = MagicMock()
-            wk_app = cast(WkApp, pilot.app)
-            wk_app.exit = exit_mock  # type: ignore[method-assign]
-            wk_app.action_select()
+            await pilot.press("enter")
+            await pilot.pause()
             await pilot.pause()
 
-            exit_mock.assert_called_once()
-            assert len(app.shell_commands) == 1
-            assert app.shell_commands[0].startswith("cd")
+        assert len(app.shell_commands) == 1
+        assert app.shell_commands[0].startswith("cd")
 
     @pytest.mark.asyncio
     async def test_restart_without_restart_cmd(self) -> None:
