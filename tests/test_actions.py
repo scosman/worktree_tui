@@ -186,7 +186,7 @@ class TestActionNew:
 
         with patch("wk.actions.create_worktree") as mock_create:
             mock_create.side_effect = WtCommandError(
-                command="wt switch --create existing --base=@",
+                command="wt switch --create existing --base=@ --yes",
                 stderr="error: branch already exists",
                 returncode=1,
             )
@@ -194,7 +194,9 @@ class TestActionNew:
                 action_new("existing", config)
 
             mock_create.assert_called_once_with("existing")
-            assert exc_info.value.command == "wt switch --create existing --base=@"
+            assert (
+                exc_info.value.command == "wt switch --create existing --base=@ --yes"
+            )
             assert exc_info.value.stderr == "error: branch already exists"
             assert exc_info.value.returncode == 1
 
@@ -214,7 +216,7 @@ class TestActionDelete:
         """action_delete should propagate WtCommandError if removal fails."""
         with patch("wk.actions.remove_worktree") as mock_remove:
             mock_remove.side_effect = WtCommandError(
-                command="wt remove nonexistent",
+                command="wt remove nonexistent --yes",
                 stderr="error: worktree not found",
                 returncode=1,
             )
@@ -222,7 +224,7 @@ class TestActionDelete:
                 action_delete("nonexistent")
 
             mock_remove.assert_called_once_with("nonexistent", force=False)
-            assert exc_info.value.command == "wt remove nonexistent"
+            assert exc_info.value.command == "wt remove nonexistent --yes"
             assert exc_info.value.stderr == "error: worktree not found"
             assert exc_info.value.returncode == 1
 

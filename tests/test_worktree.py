@@ -205,7 +205,7 @@ class TestCreateWorktree:
             # Verify the command was called with correct args
             assert mock_run.call_count >= 1
             first_call_args = mock_run.call_args_list[0][0][0]
-            expected = ["wt", "switch", "--create", "new-branch", "--base=@"]
+            expected = ["wt", "switch", "--create", "new-branch", "--base=@", "--yes"]
             assert first_call_args == expected
 
         assert result.name == "new-branch"
@@ -236,7 +236,7 @@ class TestRemoveWorktree:
             remove_worktree("test-branch")
 
             called_args = mock_run.call_args[0][0]
-            assert called_args == ["wt", "remove", "test-branch"]
+            assert called_args == ["wt", "remove", "test-branch", "--yes"]
 
     def test_remove_worktree_raises_on_failure(self) -> None:
         """remove_worktree should raise WtCommandError on failure."""

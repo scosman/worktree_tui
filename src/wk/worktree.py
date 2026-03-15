@@ -96,11 +96,11 @@ def list_worktrees() -> list[Worktree]:
 def create_worktree(name: str) -> Worktree:
     """Create a new worktree branching off HEAD.
 
-    Runs: `wt switch --create <name> --base=@`
+    Runs: `wt switch --create <name> --base=@ --yes`
     Returns the newly created Worktree.
     Raises WtCommandError on failure (e.g. name already exists).
     """
-    _run_wt(["switch", "--create", name, "--base=@"])
+    _run_wt(["switch", "--create", name, "--base=@", "--yes"])
     # Find and return the newly created worktree
     result = find_worktree(name)
     if result is None:
@@ -115,10 +115,10 @@ def create_worktree(name: str) -> Worktree:
 def remove_worktree(name: str, force: bool = False) -> None:
     """Remove a worktree.
 
-    Runs: `wt remove <name>` (with --force if force=True)
+    Runs: `wt remove <name> --yes` (with --force if force=True)
     Raises WtCommandError on failure.
     """
-    args = ["remove", name]
+    args = ["remove", name, "--yes"]
     if force:
         args.append("--force")
     _run_wt(args)

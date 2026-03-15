@@ -142,7 +142,7 @@ class TestNewCommand:
         ):
             mock_config.return_value = config
             mock_action.side_effect = WtCommandError(
-                command="wt switch --create my-feature --base=@",
+                command="wt switch --create my-feature --base=@ --yes",
                 stderr="error: branch already exists",
                 returncode=1,
             )
