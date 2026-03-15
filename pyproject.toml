@@ -12,6 +12,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-asyncio>=0.23.0",
     "pytest-xdist>=3.0",
     "pytest-benchmark>=4.0",
     "ruff>=0.4.0",
@@ -30,6 +31,8 @@ packages = ["src/wk"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 # Ruff configuration
 [tool.ruff]

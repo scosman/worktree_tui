@@ -1,0 +1,570 @@
+[
+  {
+    "branch": "scosman/worktrees",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new",
+    "kind": "worktree",
+    "commit": {
+      "sha": "53c5f8774c0492684b33de689e4139ec7c3df902",
+      "short_sha": "53c5f87",
+      "message": "Better setup",
+      "timestamp": 1773543305
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": false,
+      "untracked": true,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 0,
+        "deleted": 0
+      }
+    },
+    "main_state": "is_main",
+    "remote": {
+      "name": "origin",
+      "branch": "scosman/worktrees",
+      "ahead": 0,
+      "behind": 0
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": true,
+    "is_current": true,
+    "is_previous": true,
+    "statusline": "scosman/worktrees  \u001b[36m?\u001b[39m\u001b[31m⚑\u001b[39m\u001b[2m^\u001b[22m\u001b[2m|\u001b[22m  \u001b[32m↑9\u001b[0m",
+    "symbols": "?^|⚑"
+  },
+  {
+    "branch": "x2",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/x2",
+    "kind": "worktree",
+    "commit": {
+      "sha": "5cd3a327330e5220c44b4be59c9a61acc4499135",
+      "short_sha": "5cd3a32",
+      "message": "better session reattach",
+      "timestamp": 1773538564
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 8,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "x2  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑8\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "x3",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/x3",
+    "kind": "worktree",
+    "commit": {
+      "sha": "5cd3a327330e5220c44b4be59c9a61acc4499135",
+      "short_sha": "5cd3a32",
+      "message": "better session reattach",
+      "timestamp": 1773538564
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 8,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "x3  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑8\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "x1",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/x1",
+    "kind": "worktree",
+    "commit": {
+      "sha": "89deeb5bc431dd2fe71e4b0b85c61bba4d4f67e2",
+      "short_sha": "89deeb5",
+      "message": "CR feedback",
+      "timestamp": 1773536818
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 7,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "x1  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑7\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "my-feature-name",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/my-feature-name",
+    "kind": "worktree",
+    "commit": {
+      "sha": "73a9e857078e5af6dd3cad80d6db58168bd68c22",
+      "short_sha": "73a9e85",
+      "message": "worktree README",
+      "timestamp": 1773533984
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 6,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature-name  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑6\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "my-feature-7",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/my-feature-7",
+    "kind": "worktree",
+    "commit": {
+      "sha": "d697984111da49e6a286eb3588ceb2e1f9f3e382",
+      "short_sha": "d697984",
+      "message": "setup default WT path",
+      "timestamp": 1773524089
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 5,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature-7  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑5\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "my-feature-8",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/my-feature-8",
+    "kind": "worktree",
+    "commit": {
+      "sha": "d697984111da49e6a286eb3588ceb2e1f9f3e382",
+      "short_sha": "d697984",
+      "message": "setup default WT path",
+      "timestamp": 1773524089
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 5,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature-8  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑5\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "my-feature-3",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new.my-feature-3",
+    "kind": "worktree",
+    "commit": {
+      "sha": "6ceb44df543bd568484ede046360dbca7ad59f8e",
+      "short_sha": "6ceb44d",
+      "message": "setup env",
+      "timestamp": 1773521938
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 4,
+      "behind": 0
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature-3  \u001b[36m!\u001b[39m\u001b[31m⚑\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑4\u001b[0m",
+    "symbols": "!↑⚑"
+  },
+  {
+    "branch": "my-feature-4",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new.my-feature-4",
+    "kind": "worktree",
+    "commit": {
+      "sha": "6ceb44df543bd568484ede046360dbca7ad59f8e",
+      "short_sha": "6ceb44d",
+      "message": "setup env",
+      "timestamp": 1773521938
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 4,
+      "behind": 0
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature-4  \u001b[36m!\u001b[39m\u001b[31m⚑\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑4\u001b[0m",
+    "symbols": "!↑⚑"
+  },
+  {
+    "branch": "my-feature-5",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/my-feature-5",
+    "kind": "worktree",
+    "commit": {
+      "sha": "6ceb44df543bd568484ede046360dbca7ad59f8e",
+      "short_sha": "6ceb44d",
+      "message": "setup env",
+      "timestamp": 1773521938
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 4,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature-5  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑4\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "my-feature-6",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.worktrees/my-feature-6",
+    "kind": "worktree",
+    "commit": {
+      "sha": "6ceb44df543bd568484ede046360dbca7ad59f8e",
+      "short_sha": "6ceb44d",
+      "message": "setup env",
+      "timestamp": 1773521938
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "ahead",
+    "main": {
+      "ahead": 4,
+      "behind": 0
+    },
+    "worktree": {
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature-6  \u001b[36m!\u001b[39m\u001b[2m↑\u001b[22m  @\u001b[32m+20\u001b[0m  \u001b[32m↑4\u001b[0m",
+    "symbols": "!↑"
+  },
+  {
+    "branch": "my-feature",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new.my-feature",
+    "kind": "worktree",
+    "commit": {
+      "sha": "11b4645bf111ae42c039ca39bfee15baa43b20c3",
+      "short_sha": "11b4645",
+      "message": "",
+      "timestamp": 0
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": false,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature  \u001b[31m⚑\u001b[39m",
+    "symbols": "⚑"
+  },
+  {
+    "branch": "my-feature2",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new.my-feature2",
+    "kind": "worktree",
+    "commit": {
+      "sha": "11b4645bf111ae42c039ca39bfee15baa43b20c3",
+      "short_sha": "11b4645",
+      "message": "Merge pull request #1123 from Kiln-AI/leonard/kil-458-fix-litellm-embedding-api-broke-for-openrouter",
+      "timestamp": 1773344473
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": true,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 20,
+        "deleted": 0
+      }
+    },
+    "main_state": "same_commit",
+    "main": {
+      "ahead": 0,
+      "behind": 0
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "my-feature2  \u001b[36m!\u001b[39m\u001b[36m?\u001b[39m\u001b[31m⚑\u001b[39m\u001b[2m–\u001b[22m  @\u001b[32m+20\u001b[0m",
+    "symbols": "!?–⚑"
+  },
+  {
+    "branch": "abstract_datamodel_store",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.conductor/medan",
+    "kind": "worktree",
+    "commit": {
+      "sha": "e89969aa1f7c4c46cd21c9e1bdeca6b8b54c4167",
+      "short_sha": "e89969a",
+      "message": "Merge pull request #863 from Kiln-AI/sfierro/KIL-271",
+      "timestamp": 1764385394
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": true,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 106,
+        "deleted": 89
+      }
+    },
+    "main_state": "behind",
+    "main": {
+      "ahead": 0,
+      "behind": 1179
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "abstract_datamodel_store  \u001b[36m!\u001b[39m\u001b[36m?\u001b[39m\u001b[31m⚑\u001b[39m\u001b[2m↓\u001b[22m  @\u001b[32m+106\u001b[0m \u001b[31m-89\u001b[0m  \u001b[2m\u001b[31m↓1179\u001b[0m",
+    "symbols": "!?↓⚑"
+  },
+  {
+    "branch": "cf_remote_config",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.conductor/alexandria",
+    "kind": "worktree",
+    "commit": {
+      "sha": "622e3de8defb38ecb1ba093f18ce43fa4a108aff",
+      "short_sha": "622e3de",
+      "message": "doc improvements",
+      "timestamp": 1763857242
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": false,
+      "untracked": false,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 0,
+        "deleted": 0
+      }
+    },
+    "main_state": "integrated",
+    "integration_reason": "ancestor",
+    "main": {
+      "ahead": 0,
+      "behind": 1215
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "cf_remote_config  \u001b[31m⚑\u001b[39m\u001b[2m⊂\u001b[22m  \u001b[2m\u001b[31m↓1215\u001b[0m",
+    "symbols": "⊂⚑"
+  },
+  {
+    "branch": "optional_deps_for_lib",
+    "path": "/Users/scosman/Dropbox/workspace/kiln_new/.conductor/rabat",
+    "kind": "worktree",
+    "commit": {
+      "sha": "8309be7ff2c4a4c85da1db3ef82c911694090349",
+      "short_sha": "8309be7",
+      "message": "cleaner way of importing kiln-ai into desktop",
+      "timestamp": 1763757826
+    },
+    "working_tree": {
+      "staged": false,
+      "modified": true,
+      "untracked": true,
+      "renamed": false,
+      "deleted": false,
+      "diff": {
+        "added": 9,
+        "deleted": 9
+      }
+    },
+    "main_state": "would_conflict",
+    "main": {
+      "ahead": 3,
+      "behind": 1216
+    },
+    "remote": {
+      "name": "origin",
+      "branch": "optional_deps_for_lib",
+      "ahead": 0,
+      "behind": 0
+    },
+    "worktree": {
+      "state": "branch_worktree_mismatch",
+      "detached": false
+    },
+    "is_main": false,
+    "is_current": false,
+    "is_previous": false,
+    "statusline": "optional_deps_for_lib  \u001b[36m!\u001b[39m\u001b[36m?\u001b[39m\u001b[31m⚑\u001b[39m\u001b[33m✗\u001b[39m\u001b[2m|\u001b[22m  @\u001b[32m+9\u001b[0m \u001b[31m-9\u001b[0m  \u001b[32m↑3\u001b[0m \u001b[2m\u001b[31m↓1216\u001b[0m",
+    "symbols": "!?✗|⚑"
+  }
+]
