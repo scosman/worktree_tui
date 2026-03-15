@@ -1,8 +1,6 @@
 # Worktree TUI
 
-This is an interactive TUI for managing git worktrees.
-
-It's uses the excellent [Worktrunk](https://worktrunk.dev) project for operations, just adding a TUI layer.
+This is an interactive TUI for managing git worktrees, allowing developing several features in parallel. It's uses the excellent [Worktrunk](https://worktrunk.dev) project for operations, and adds a TUI (Terminal UI).
 
 ## Preview
 
