@@ -67,6 +67,13 @@ def load_config() -> WkConfig:
         except yaml.YAMLError as e:
             raise ConfigError(f"Malformed YAML in {config_path}: {e}") from e
 
+        # Validate that data is a dict (not a string or other type)
+        if not isinstance(data, dict):
+            raise ConfigError(
+                f"Invalid config format in {config_path}: expected YAML mapping, "
+                f"got {type(data).__name__}. Use 'key: value' syntax, not 'KEY=value'."
+            )
+
         # Extract known keys, ignore unknown
         open_cmd = data.get("open_workspace_cmd")
         restart_cmd = data.get("restart_workspace_cmd")

@@ -445,8 +445,7 @@ class TestWkApp:
     async def test_enter_binding_exists(self) -> None:
         """Verify Enter key is bound to select action."""
         app = WkApp([WORKTREE_1], SAMPLE_CONFIG)
-        # Check that the binding exists
-        binding_keys = [b.key for b in app.BINDINGS]
+        binding_keys = list(app._bindings.key_to_bindings.keys())
         assert "enter" in binding_keys
 
 
@@ -581,7 +580,7 @@ class TestWkAppNoConfig:
 
     @pytest.mark.asyncio
     async def test_restart_without_restart_cmd(self) -> None:
-        """Restart without restart_workspace_cmd falls back to cd only."""
+        """Restart binding is absent when restart_workspace_cmd is None."""
         config = WkConfig(
             open_workspace_cmd="code .",
             restart_workspace_cmd=None,
@@ -590,10 +589,11 @@ class TestWkAppNoConfig:
         worktrees = [WORKTREE_1]
         app = WkApp(worktrees, config)
 
+        assert "r" not in app._bindings.key_to_bindings
+
         async with app.run_test() as pilot:
             await pilot.press("r")
             await pilot.pause()
             await pilot.pause()
 
-        assert len(app.shell_commands) == 1
-        assert app.shell_commands[0].startswith("cd")
+        assert app.shell_commands == []

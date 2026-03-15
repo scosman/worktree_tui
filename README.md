@@ -25,5 +25,5 @@ You can add custom commands to a config file in your project root, which will ex
 
 File `.config/wk.yml`
 
- - OPEN_WORKSPACE_CMD: the "launch workspace" command. If missing, launch option won't appear in TUI
- - RESTART_WORKSPACE_CMD: the "launch workspace" command. If missing, restart option won't appear in TUI
+ - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI
+ - restart_workspace_cmd: the "launch workspace" command. If missing, restart option won't appear in TUI
