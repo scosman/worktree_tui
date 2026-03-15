@@ -25,5 +25,10 @@ You can add custom commands to a config file in your project root, which will ex
 
 File `.config/wk.yml`
 
- - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI
+ - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI. Useful for tools like tmux/zellij.
  - restart_workspace_cmd: the "launch workspace" command. If missing, restart option won't appear in TUI
+
+```yaml
+open_workspace_cmd: tmux ...
+restart_workspace_cmd: tmux delete ... & tmux ...
+```
