@@ -56,16 +56,25 @@ def _run_wt(args: list[str]) -> str:
 
 def _parse_worktree(data: dict) -> Worktree:
     """Parse a worktree dict from JSON into a Worktree object."""
-    created_str = data.get("created", "")
-    # Parse ISO format datetime
-    if created_str.endswith("Z"):
-        created_str = created_str[:-1] + "+00:00"
-    created = datetime.fromisoformat(created_str)
+    # Handle created timestamp - can be ISO string or Unix timestamp in commit
+    created: datetime
+    if "created" in data and data["created"]:
+        created_str = data["created"]
+        if created_str.endswith("Z"):
+            created_str = created_str[:-1] + "+00:00"
+        created = datetime.fromisoformat(created_str)
+    elif "commit" in data and "timestamp" in data["commit"]:
+        created = datetime.fromtimestamp(data["commit"]["timestamp"], tz=None)
+    else:
+        created = datetime.now()
+
+    # Use branch as name if name not present
+    name = data.get("name") or data.get("branch", "")
 
     return Worktree(
-        name=data["name"],
+        name=name,
         path=Path(data["path"]),
-        branch=data["branch"],
+        branch=data.get("branch", name),
         created=created,
     )
 

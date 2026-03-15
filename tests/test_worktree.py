@@ -11,11 +11,15 @@ import pytest
 from wk.worktree import (
     Worktree,
     WtCommandError,
+    _parse_worktree,
     create_worktree,
     find_worktree,
     list_worktrees,
     remove_worktree,
 )
+
+# Path to test fixtures
+FIXTURES_DIR = Path(__file__).parent
 
 
 class TestWorktree:
@@ -351,3 +355,153 @@ class TestWtCommandError:
         assert "wt remove foo" in str(error)
         assert "1" in str(error)
         assert "not found" in str(error)
+
+
+class TestRealWtListJson:
+    """Tests using real wt list --format json output."""
+
+    def test_parse_real_json_fixture(self) -> None:
+        """Parser should handle real wt list --format json output."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        worktrees = [_parse_worktree(item) for item in data]
+
+        # Should have parsed all worktrees without error
+        assert len(worktrees) == 16
+
+    def test_parse_uses_branch_as_name(self) -> None:
+        """Parser should use branch as name when name field is absent."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # First entry has branch but no name field
+        main = _parse_worktree(data[0])
+
+        assert main.name == "scosman/worktrees"
+        assert main.branch == "scosman/worktrees"
+
+    def test_parse_worktree_with_dash_in_name(self) -> None:
+        """Parser should correctly parse worktrees with dashes in name."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # Find my-feature-name worktree
+        for item in data:
+            if item["branch"] == "my-feature-name":
+                wt = _parse_worktree(item)
+                assert wt.name == "my-feature-name"
+                assert wt.branch == "my-feature-name"
+                break
+
+    def test_parse_worktree_with_underscore_in_name(self) -> None:
+        """Parser should correctly parse worktrees with underscores in name."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # Find abstract_datamodel_store worktree
+        for item in data:
+            if item["branch"] == "abstract_datamodel_store":
+                wt = _parse_worktree(item)
+                assert wt.name == "abstract_datamodel_store"
+                break
+
+    def test_parse_worktree_with_slash_in_name(self) -> None:
+        """Parser should correctly parse worktrees with slash in name."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # First entry has branch scosman/worktrees (slash in name)
+        wt = _parse_worktree(data[0])
+        assert wt.name == "scosman/worktrees"
+        assert wt.branch == "scosman/worktrees"
+
+    def test_parse_timestamp_conversion(self) -> None:
+        """Parser should convert Unix timestamp to datetime."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # First entry has timestamp 1773543305
+        main = _parse_worktree(data[0])
+
+        # Verify created is a datetime
+        assert isinstance(main.created, datetime)
+
+    def test_parse_empty_commit_message(self) -> None:
+        """Parser should handle empty commit message."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # Find my-feature which has empty commit message
+        for item in data:
+            if item["branch"] == "my-feature":
+                wt = _parse_worktree(item)
+                assert wt.name == "my-feature"
+                break
+
+    def test_parse_zero_timestamp(self) -> None:
+        """Parser should handle zero timestamp (uncommitted/orphan)."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # Find my-feature which has timestamp 0
+        for item in data:
+            if item["branch"] == "my-feature":
+                wt = _parse_worktree(item)
+                # Should still produce a valid datetime (epoch)
+                assert isinstance(wt.created, datetime)
+                break
+
+    def test_list_worktrees_with_real_fixture(self) -> None:
+        """list_worktrees should work with real fixture data."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            json_output = f.read()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json_output
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stderr = ""
+
+            worktrees = list_worktrees()
+
+        assert len(worktrees) == 16
+        # Should be sorted by created desc (most recent first)
+        assert worktrees[0].name == "scosman/worktrees"
+
+    def test_parse_all_variants_of_main_state(self) -> None:
+        """Parser should handle all main_state variants."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        # Verify we can parse all entries regardless of main_state
+        main_states_seen = set()
+        for item in data:
+            wt = _parse_worktree(item)
+            assert isinstance(wt, Worktree)
+            if "main_state" in item:
+                main_states_seen.add(item["main_state"])
+
+        # We should see various states
+        assert "is_main" in main_states_seen
+        assert "ahead" in main_states_seen
+        assert "behind" in main_states_seen
+
+    def test_parse_path_preserved(self) -> None:
+        """Parser should preserve exact path from JSON."""
+        fixture_path = FIXTURES_DIR / "example_wr_list.json"
+        with open(fixture_path) as f:
+            data = json.load(f)
+
+        for item in data:
+            wt = _parse_worktree(item)
+            assert wt.path == Path(item["path"])
