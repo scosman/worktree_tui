@@ -207,7 +207,7 @@ class TestActionDelete:
         with patch("wk.actions.remove_worktree") as mock_remove:
             mock_remove.return_value = None
             result = action_delete("old-feature")
-            mock_remove.assert_called_once_with("old-feature")
+            mock_remove.assert_called_once_with("old-feature", force=False)
             assert result is None
 
     def test_action_delete_propagates_wt_command_error(self) -> None:
@@ -221,7 +221,7 @@ class TestActionDelete:
             with pytest.raises(WtCommandError) as exc_info:
                 action_delete("nonexistent")
 
-            mock_remove.assert_called_once_with("nonexistent")
+            mock_remove.assert_called_once_with("nonexistent", force=False)
             assert exc_info.value.command == "wt remove nonexistent"
             assert exc_info.value.stderr == "error: worktree not found"
             assert exc_info.value.returncode == 1

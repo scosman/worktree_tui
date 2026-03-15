@@ -185,6 +185,63 @@ class ErrorNotificationScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
+class DeleteErrorScreen(ModalScreen[bool]):
+    """Modal screen for delete errors with force option.
+
+    Returns True to force delete, False to cancel.
+    """
+
+    DEFAULT_CSS = """
+    DeleteErrorScreen {
+        align: center middle;
+    }
+
+    DeleteErrorScreen > Vertical {
+        width: 60;
+        height: auto;
+        background: $background;
+        border: thick $error;
+        padding: 1 2;
+    }
+
+    DeleteErrorScreen Label {
+        margin-bottom: 1;
+        color: $error;
+    }
+
+    DeleteErrorScreen .buttons {
+        layout: horizontal;
+        width: 100%;
+        height: auto;
+    }
+
+    DeleteErrorScreen Button {
+        width: 1fr;
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self._message = message
+
+    def compose(self):
+        with Vertical():
+            yield Label(self._message)
+            with Vertical(classes="buttons"):
+                yield Button("Cancel", variant="default", id="cancel")
+                yield Button("Force Delete", variant="error", id="force")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press."""
+        self.dismiss(event.button.id == "force")
+
+    def on_key(self, event) -> None:
+        """Handle escape key to cancel."""
+        if event.key == "escape":
+            self.dismiss(False)
+
+
 class WkApp(App):
     """Main wk TUI application.
 
@@ -283,8 +340,15 @@ class WkApp(App):
         """Show delete confirmation dialog."""
         self.push_screen(ConfirmDeleteScreen(worktree.name), self._handle_delete_result)
 
-    def _handle_delete_result(self, confirmed: bool | None) -> None:
-        """Handle result from delete confirmation."""
+    def _handle_delete_result(
+        self, confirmed: bool | None, force: bool = False
+    ) -> None:
+        """Handle result from delete confirmation.
+
+        Args:
+            confirmed: True if user confirmed, False/None if cancelled.
+            force: If True, use --force flag for deletion.
+        """
         if not confirmed:
             return  # Cancelled
 
@@ -294,7 +358,7 @@ class WkApp(App):
             return
 
         try:
-            action_delete(worktree.name)
+            action_delete(worktree.name, force=force)
             # Refresh the list by re-fetching worktrees
             from wk.worktree import list_worktrees
 
@@ -302,7 +366,36 @@ class WkApp(App):
             # Defer DOM manipulation to avoid hanging inside push_screen callback
             self.call_later(self._refresh_worktree_list)
         except WtCommandError as e:
-            self._show_error(f"Failed to delete worktree: {e.stderr.strip()}")
+            self._show_delete_error(worktree.name, e.stderr.strip())
+
+    def _show_delete_error(self, worktree_name: str, error_msg: str) -> None:
+        """Show delete error with force option."""
+        self._pending_delete_name = worktree_name
+        self.push_screen(
+            DeleteErrorScreen(f"Failed to delete: {error_msg}"),
+            self._handle_force_delete_result,
+        )
+
+    def _handle_force_delete_result(self, force: bool | None) -> None:
+        """Handle result from delete error screen (force or cancel)."""
+        if not force:
+            return  # Cancelled
+
+        list_widget = self.query_one(WorktreeList)
+        worktree = list_widget.selected_worktree
+        if worktree is None:
+            return
+
+        try:
+            action_delete(worktree.name, force=True)
+            # Refresh the list by re-fetching worktrees
+            from wk.worktree import list_worktrees
+
+            self._worktrees = list_worktrees()
+            self.call_later(self._refresh_worktree_list)
+        except WtCommandError as e:
+            # Force also failed, show generic error
+            self._show_error(f"Force delete failed: {e.stderr.strip()}")
 
     def _refresh_worktree_list(self) -> None:
         """Replace the worktree list widget with a fresh one."""

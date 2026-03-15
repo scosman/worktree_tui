@@ -112,13 +112,16 @@ def create_worktree(name: str) -> Worktree:
     return result
 
 
-def remove_worktree(name: str) -> None:
+def remove_worktree(name: str, force: bool = False) -> None:
     """Remove a worktree.
 
-    Runs: `wt remove <name>`
+    Runs: `wt remove <name>` (with --force if force=True)
     Raises WtCommandError on failure.
     """
-    _run_wt(["remove", name])
+    args = ["remove", name]
+    if force:
+        args.append("--force")
+    _run_wt(args)
 
 
 def find_worktree(name: str) -> Worktree | None:

@@ -53,11 +53,11 @@ def action_new(name: str, config: WkConfig) -> list[str]:
     return action_launch(worktree, config)
 
 
-def action_delete(name: str) -> None:
+def action_delete(name: str, force: bool = False) -> None:
     """Delete a worktree.
 
-    Calls remove_worktree(name).
+    Calls remove_worktree(name, force).
     Raises WtCommandError if removal fails.
     Returns nothing — no shell commands needed (caller stays in TUI or exits).
     """
-    remove_worktree(name)
+    remove_worktree(name, force=force)

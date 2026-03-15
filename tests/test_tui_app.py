@@ -11,6 +11,7 @@ from textual.widgets import Input
 from wk.config import WkConfig
 from wk.tui.app import (
     ConfirmDeleteScreen,
+    DeleteErrorScreen,
     ErrorNotificationScreen,
     NewWorktreeScreen,
     WkApp,
@@ -130,7 +131,7 @@ class TestConfirmDeleteScreen:
                     await pilot.pause()
                     await pilot.pause()
 
-                    mock_delete.assert_called_once_with(WORKTREE_1.name)
+                    mock_delete.assert_called_once_with(WORKTREE_1.name, force=False)
 
     @pytest.mark.asyncio
     async def test_cancel_returns_false(self) -> None:
@@ -176,7 +177,7 @@ class TestErrorNotificationScreen:
 
     @pytest.mark.asyncio
     async def test_displays_message(self) -> None:
-        """Error message is displayed."""
+        """Error message is displayed on delete failure."""
         app = WkApp([WORKTREE_1], SAMPLE_CONFIG)
 
         with patch("wk.tui.app.action_delete") as mock_delete:
@@ -193,15 +194,11 @@ class TestErrorNotificationScreen:
                 await pilot.pause()
                 await pilot.pause()
 
-                assert isinstance(pilot.app.screen, ErrorNotificationScreen)
-
-                # Verify the screen was created - error message is stored internally
-                error_screen = pilot.app.screen
-                assert error_screen._message == "Failed to delete worktree: Error!"
+                assert isinstance(pilot.app.screen, DeleteErrorScreen)
 
     @pytest.mark.asyncio
     async def test_button_dismisses(self) -> None:
-        """Clicking OK dismisses the error screen."""
+        """Clicking Cancel dismisses the error screen."""
         app = WkApp([WORKTREE_1], SAMPLE_CONFIG)
 
         with patch("wk.tui.app.action_delete") as mock_delete:
@@ -218,15 +215,15 @@ class TestErrorNotificationScreen:
                 await pilot.pause()
                 await pilot.pause()
 
-                assert isinstance(pilot.app.screen, ErrorNotificationScreen)
+                assert isinstance(pilot.app.screen, DeleteErrorScreen)
 
                 error_screen = pilot.app.screen
-                ok_btn = error_screen.query_one("Button")
-                await pilot.click(ok_btn)
+                cancel_btn = error_screen.query_one("#cancel")
+                await pilot.click(cancel_btn)
                 await pilot.pause()
                 await pilot.pause()
 
-                assert not isinstance(pilot.app.screen, ErrorNotificationScreen)
+                assert not isinstance(pilot.app.screen, DeleteErrorScreen)
 
 
 class TestWkApp:
@@ -479,12 +476,12 @@ class TestWkAppWithMocks:
                 await pilot.pause()
                 await pilot.pause()
 
-                mock_delete.assert_called_once_with(WORKTREE_1.name)
+                mock_delete.assert_called_once_with(WORKTREE_1.name, force=False)
                 mock_list.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_delete_error_shows_notification(self) -> None:
-        """Error on delete shows error notification."""
+        """Error on delete shows error notification with force option."""
         worktrees = [WORKTREE_1]
         app = WkApp(worktrees, SAMPLE_CONFIG)
 
@@ -502,7 +499,7 @@ class TestWkAppWithMocks:
                 await pilot.pause()
                 await pilot.pause()
 
-                assert isinstance(pilot.app.screen, ErrorNotificationScreen)
+                assert isinstance(pilot.app.screen, DeleteErrorScreen)
 
     @pytest.mark.asyncio
     async def test_new_error_shows_notification(self) -> None:
