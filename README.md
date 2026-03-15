@@ -12,7 +12,11 @@ It's uses the excellent [Worktrunk](https://worktrunk.dev) project for operation
 ```
 # Install UV if you don't already have it: https://docs.astral.sh/uv/getting-started/installation/
 
-# Install `wk` command
+# Install and configure worktrunk (dependency)
+brew install worktrunk
+wt config shell install
+
+# Install this project (`wk` command)
 uv tool install "git+https://github.com/scosman/worktree_tui"
 
 # Run `wk` command. First launch will ask you to update .zshrc
