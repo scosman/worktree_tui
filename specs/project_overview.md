@@ -22,10 +22,11 @@ Selecting existing worktree
  - Launch Workspace: see below
  - Jump: change to wt directory
  - Delete: remove worktree (with confirmation)
+ - Restart: retsarts the workspace with RESTART_WORKSPACE_CMD (with confirmation)
 
 ### Base Branch
 
-creating a new worktree via "new" or TUI should branch off the corrent branch (wt defautls to main). This can be done with the --base option.
+creating a new worktree via "new" or TUI should branch off the corrent branch (wt defaults to main). This can be done with the --base option.
 
 ### "Launching" a worktree workspace
 
@@ -36,6 +37,7 @@ Launching just means changing directory to the worktree (or wt switch) then call
 Expect a config file in `.config/wk.yml` with
 
  - OPEN_WORKSPACE_CMD: the "launch workspace" command. If missing, launch is a no-op.
+ - RESTART_WORKSPACE_CMD: the "launch workspace" command. If missing, launch is a no-op.
 
 ### CLI Commands
 

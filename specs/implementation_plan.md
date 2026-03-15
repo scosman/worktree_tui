@@ -2,10 +2,10 @@
 
 ## Step 1: Project Scaffolding
 
-- [ ] Configure `pyproject.toml` (src layout, entry point `wk = "wk.cli:main"`, dependencies: textual, pyyaml)
-- [ ] Create `src/wk/` package structure with `__init__.py` files
-- [ ] Set up test infrastructure (pytest, test directory)
-- [ ] Verify `uv run wk` invokes the entry point
+- [x] Configure `pyproject.toml` (src layout, entry point `wk = "wk.cli:main"`, dependencies: textual, pyyaml)
+- [x] Create `src/wk/` package structure with `__init__.py` files
+- [x] Set up test infrastructure (pytest, test directory)
+- [x] Verify `uv run wk` invokes the entry point
 
 ## Step 2: `config.py`
 
