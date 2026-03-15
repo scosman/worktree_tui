@@ -6,6 +6,9 @@ It's uses the excellent [Worktrunk](https://worktrunk.dev) project for operation
 
 ## Preview
 
+![wt_420](https://github.com/user-attachments/assets/29fb7ed5-f090-405a-ad86-44e93b74f2ec)
+
+Note: this demo also shows a [zellij](https://zellij.dev) based "launch command". See how to configure a launch command below.
 
 ## Installing and Setup
 
