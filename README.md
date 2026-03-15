@@ -30,7 +30,7 @@ wk
 
 ### Worktrunk Configuration
 
-Configure [Worktrunk](https://worktrunk.dev) following their guide to start. You can add things like hooks to run after creating a workspace (`npm install`, etc). This project wraps their CLI with a TUI.
+Configure [Worktrunk](https://worktrunk.dev) following their guide to start. You can add things like hooks to run after creating a workspace (`npm install`, etc). This project wraps their CLI with a TUI, so it must be setup properly before using `wk`.
 
 ### `wk` Configuration
 
