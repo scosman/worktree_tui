@@ -27,9 +27,13 @@ def generate_wrapper_zsh() -> str:
     - Direct appending to .zshrc by the setup flow
     """
     return """wk() {
+    if ! whence -p wk &> /dev/null; then
+        echo "error: wk command not found" >&2
+        return 1
+    fi
     export __WK_WRAPPED=1
     local output
-    output=$(command wk "$@" 3>&1 1>&2 2>&3 3>&-)
+    output=$(command wk "$@")
     local exit_code=$?
     unset __WK_WRAPPED
     if [[ $exit_code -eq 0 && -n "$output" ]]; then
@@ -71,7 +75,7 @@ def run_setup_flow() -> None:
         return
 
     zshrc_path = Path.home() / ".zshrc"
-    wrapper_line = 'eval "$(wk init zsh)"'
+    wrapper_content = generate_wrapper_zsh()
 
     # Print explanation
     print("\nwk Shell Wrapper Setup", file=sys.stderr)
@@ -85,7 +89,7 @@ def run_setup_flow() -> None:
         file=sys.stderr,
     )
     print(
-        "\nThis requires adding a single line to your ~/.zshrc file.",
+        "\nThis requires adding a wrapper function to your ~/.zshrc file.",
         file=sys.stderr,
     )
 
@@ -102,14 +106,15 @@ def run_setup_flow() -> None:
 
     if response != "y":
         print("\nManual setup instructions:", file=sys.stderr)
-        print("  Add this line to your ~/.zshrc:", file=sys.stderr)
-        print(f"    {wrapper_line}", file=sys.stderr)
+        print("  Run: wk init zsh", file=sys.stderr)
+        print("  Then add the output to your ~/.zshrc", file=sys.stderr)
         print("\n  Then run: source ~/.zshrc", file=sys.stderr)
         return
 
     # Show what will be appended
-    print("\nThe following line will be appended to ~/.zshrc:", file=sys.stderr)
-    print(f"  {wrapper_line}", file=sys.stderr)
+    print("\nThe following will be appended to ~/.zshrc:", file=sys.stderr)
+    for line in wrapper_content.splitlines():
+        print(f"  {line}", file=sys.stderr)
     print("\nConfirm? (y/n): ", file=sys.stderr, end="", flush=True)
 
     try:
@@ -124,7 +129,7 @@ def run_setup_flow() -> None:
 
     # Append to .zshrc
     with open(zshrc_path, "a") as f:
-        f.write(f"\n# wk worktree manager\n{wrapper_line}\n")
+        f.write(f"\n# wk worktree manager\n{wrapper_content}\n")
 
     print("\nShell wrapper installed successfully!", file=sys.stderr)
     print("Run `source ~/.zshrc` to activate.", file=sys.stderr)

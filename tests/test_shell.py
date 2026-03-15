@@ -170,9 +170,10 @@ class TestRunSetupFlow:
                     with patch("sys.stderr", new_callable=StringIO):
                         run_setup_flow()
 
-        # Check that wrapper line was appended
+        # Check that wrapper function was appended
         content = zshrc.read_text()
-        assert 'eval "$(wk init zsh)"' in content
+        assert "wk() {" in content
+        assert "__WK_WRAPPED" in content
 
     def test_run_setup_flow_shows_manual_on_decline(self) -> None:
         """Should show manual instructions when user declines."""
@@ -190,7 +191,7 @@ class TestRunSetupFlow:
                     run_setup_flow()
                     output = mock_stderr.getvalue()
 
-        assert 'eval "$(wk init zsh)"' in output
+        assert "wk init zsh" in output
 
     def test_run_setup_flow_cancels_on_second_decline(self, tmp_path: Path) -> None:
         """Should cancel setup if user declines confirmation."""
