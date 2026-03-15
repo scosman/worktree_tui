@@ -41,8 +41,9 @@
 
 ## Step 7: `tui/app.py`
 
-- [ ] Implement `WkApp`, `run_app()`, all action handlers, stderr rendering
-- [ ] Tests (spec: `specs/components/tui_app.md`)
+- [x] Implement `WkApp`, `run_app()`, all action handlers, stderr rendering
+- [x] Tests (spec: `specs/components/tui_app.md`)
+- [x] `uv run ./checks.sh` passes (lint, format, types, tests)
 
 > Depends on: actions, worktree_list, theme
 

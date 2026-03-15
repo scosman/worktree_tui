@@ -17,6 +17,14 @@ class ThemeColors:
 
 
 APP_CSS = """
+/* Theme variables - Dracula-inspired */
+$background: #282a36;
+$accent: #50fa7b;
+$text: #f8f8f2;
+$text-dim: #6272a4;
+$selected: #44475a;
+$error: #ff5555;
+
 /* App-level */
 Screen {
     background: $background;
