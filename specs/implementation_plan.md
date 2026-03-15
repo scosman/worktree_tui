@@ -19,8 +19,8 @@
 
 ## Step 4: `shell.py`
 
-- [ ] Implement `is_wrapped()`, `generate_wrapper_zsh()`, `print_shell_commands()`, `run_setup_flow()`
-- [ ] Tests (spec: `specs/components/shell.md`)
+- [x] Implement `is_wrapped()`, `generate_wrapper_zsh()`, `print_shell_commands()`, `run_setup_flow()`
+- [x] Tests (spec: `specs/components/shell.md`)
 
 ## Step 5: `actions.py`
 

@@ -8,7 +8,6 @@ Each phase should follow this pattern:
     - Order to build (steps)
     - Relevant technical details for each step (extracted from the long spec file, so we can use this smaller file as reference)
     - tests to implement for each test
-  - ask me to review and approve plan
 - Work without my assistance, continuing until done the phase.
 - Build the component, extending the existing project.
 - Compile and fix any typing, test, formatting and linting issues using relevant commands (ruff format, ruff check fix). See `CLAUDE.md` for commands. the `uv run ./checks.sh` command should pass without issue, if it has any issues iterate until resolved.
