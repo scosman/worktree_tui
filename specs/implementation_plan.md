@@ -49,8 +49,8 @@
 
 ## Step 8: `cli.py`
 
-- [ ] Implement `main()` with arg routing, wrapper enforcement, output protocol
-- [ ] Tests (spec: `specs/components/cli.md`)
-- [ ] End-to-end manual test: `wk init zsh`, wrapper install, TUI launch, CLI commands
+- [x] Implement `main()` with arg routing, wrapper enforcement, output protocol
+- [x] Tests (spec: `specs/components/cli.md`)
+- [x] End-to-end manual test: `wk init zsh`, wrapper install, TUI launch, CLI commands
 
 > Depends on: all other components
