@@ -6,6 +6,22 @@ from wk.config import WkConfig
 from wk.worktree import Worktree, create_worktree, remove_worktree
 
 
+def action_custom_command(worktree: Worktree, command: str) -> list[str]:
+    """Build shell commands to run a custom command in a worktree directory.
+
+    Always cd's into the worktree first, then runs the command.
+
+    Args:
+        worktree: The worktree to run the command in.
+        command: The shell command to run (passed through as-is).
+
+    Returns:
+        A list containing ["cd <path>", "<command>"].
+    """
+    cd_cmd = f"cd {shlex.quote(str(worktree.path))}"
+    return [cd_cmd, command]
+
+
 def action_launch(worktree: Worktree, config: WkConfig) -> list[str]:
     """Build shell commands to launch a worktree workspace.
 

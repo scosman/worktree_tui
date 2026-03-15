@@ -7,8 +7,9 @@ from unittest.mock import patch
 import pytest
 from textual.widgets import Input
 
-from wk.config import WkConfig
+from wk.config import CustomCommand, WkConfig
 from wk.tui.app import (
+    ConfirmCustomCommandScreen,
     ConfirmDeleteScreen,
     DeleteErrorScreen,
     ErrorNotificationScreen,
@@ -592,3 +593,173 @@ class TestWkAppNoConfig:
             await pilot.pause()
 
         assert app.shell_commands == []
+
+
+class TestWkAppCustomCommands:
+    """Tests for WkApp custom command handling."""
+
+    @pytest.mark.asyncio
+    async def test_custom_command_triggers_and_exits(self) -> None:
+        """Pressing custom command key should set shell_commands and exit."""
+        config = WkConfig(
+            open_workspace_cmd="code .",
+            repo_root=Path("/repo"),
+            custom_commands=(CustomCommand(key="t", name="Test", command="echo test"),),
+        )
+        worktrees = [WORKTREE_1]
+        app = WkApp(worktrees, config)
+
+        async with app.run_test() as pilot:
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.pause()
+
+        assert len(app.shell_commands) == 2
+        assert app.shell_commands[0].startswith("cd")
+        assert app.shell_commands[1] == "echo test"
+
+    @pytest.mark.asyncio
+    async def test_custom_command_confirm_shows_dialog(self) -> None:
+        """Custom command with confirm: true should show confirmation dialog."""
+        config = WkConfig(
+            open_workspace_cmd="code .",
+            repo_root=Path("/repo"),
+            custom_commands=(
+                CustomCommand(key="t", name="Test", command="echo test", confirm=True),
+            ),
+        )
+        worktrees = [WORKTREE_1]
+        app = WkApp(worktrees, config)
+
+        async with app.run_test() as pilot:
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.pause()
+
+            assert isinstance(pilot.app.screen, ConfirmCustomCommandScreen)
+
+    @pytest.mark.asyncio
+    async def test_custom_command_confirm_accept_exits(self) -> None:
+        """Accepting custom command confirmation should exit with commands."""
+        config = WkConfig(
+            open_workspace_cmd="code .",
+            repo_root=Path("/repo"),
+            custom_commands=(
+                CustomCommand(key="t", name="Test", command="echo test", confirm=True),
+            ),
+        )
+        worktrees = [WORKTREE_1]
+        app = WkApp(worktrees, config)
+
+        async with app.run_test() as pilot:
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.pause()
+
+            screen = pilot.app.screen
+            confirm_btn = screen.query_one("#confirm")
+            await pilot.click(confirm_btn)
+            await pilot.pause()
+            await pilot.pause()
+
+        assert len(app.shell_commands) == 2
+        assert app.shell_commands[1] == "echo test"
+
+    @pytest.mark.asyncio
+    async def test_custom_command_confirm_cancel_stays(self) -> None:
+        """Cancelling custom command confirmation should stay in app."""
+        config = WkConfig(
+            open_workspace_cmd="code .",
+            repo_root=Path("/repo"),
+            custom_commands=(
+                CustomCommand(key="t", name="Test", command="echo test", confirm=True),
+            ),
+        )
+        worktrees = [WORKTREE_1]
+        app = WkApp(worktrees, config)
+
+        async with app.run_test() as pilot:
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.pause()
+
+            assert isinstance(pilot.app.screen, ConfirmCustomCommandScreen)
+
+            screen = pilot.app.screen
+            cancel_btn = screen.query_one("#cancel")
+            await pilot.click(cancel_btn)
+            await pilot.pause()
+            await pilot.pause()
+
+            # App should still be running (not exited)
+            assert not isinstance(pilot.app.screen, ConfirmCustomCommandScreen)
+            assert app.shell_commands == []
+
+    @pytest.mark.asyncio
+    async def test_custom_command_noop_on_new_worktree(self) -> None:
+        """Custom command on 'New Worktree' row should be a no-op."""
+        config = WkConfig(
+            open_workspace_cmd="code .",
+            repo_root=Path("/repo"),
+            custom_commands=(CustomCommand(key="t", name="Test", command="echo test"),),
+        )
+        worktrees = [WORKTREE_1]
+        app = WkApp(worktrees, config)
+
+        async with app.run_test() as pilot:
+            list_widget = pilot.app.query_one(WorktreeList)
+            list_widget.index = 0  # Select "New Worktree"
+            await pilot.pause()
+
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.pause()
+
+            # Should not exit, commands should be empty
+            assert app.shell_commands == []
+
+    @pytest.mark.asyncio
+    async def test_custom_command_overrides_builtin(self) -> None:
+        """Custom command on built-in key should override the built-in action."""
+        config = WkConfig(
+            open_workspace_cmd="code .",
+            repo_root=Path("/repo"),
+            custom_commands=(
+                CustomCommand(key="d", name="Custom D", command="echo custom"),
+            ),
+        )
+        worktrees = [WORKTREE_1]
+        app = WkApp(worktrees, config)
+
+        async with app.run_test() as pilot:
+            await pilot.press("d")
+            await pilot.pause()
+            await pilot.pause()
+
+        # Should have custom command, not delete confirmation
+        assert len(app.shell_commands) == 2
+        assert app.shell_commands[1] == "echo custom"
+
+    @pytest.mark.asyncio
+    async def test_multiple_custom_commands_in_footer(self) -> None:
+        """Multiple custom commands should all appear in bindings."""
+        config = WkConfig(
+            open_workspace_cmd="code .",
+            repo_root=Path("/repo"),
+            custom_commands=(
+                CustomCommand(key="t", name="Test", command="echo test"),
+                CustomCommand(key="b", name="Build", command="npm build"),
+            ),
+        )
+        worktrees = [WORKTREE_1]
+        app = WkApp(worktrees, config)
+
+        # Check that both custom keys are in bindings
+        assert "t" in app._bindings.key_to_bindings
+        assert "b" in app._bindings.key_to_bindings
+
+        # Check that the binding names are correct
+        t_binding = app._bindings.key_to_bindings["t"][0]
+        b_binding = app._bindings.key_to_bindings["b"][0]
+        assert t_binding.description == "Test"
+        assert b_binding.description == "Build"

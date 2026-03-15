@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from wk.config import ConfigError, WkConfig, load_config
+from wk.config import ConfigError, CustomCommand, WkConfig, load_config
 
 
 class TestWkConfig:
@@ -138,3 +138,204 @@ class TestFindRepoRoot:
                 config = load_config()
 
         assert config.repo_root == expected_path
+
+
+class TestCustomCommand:
+    """Tests for CustomCommand dataclass."""
+
+    def test_custom_command_is_immutable(self) -> None:
+        """CustomCommand should be frozen/immutable."""
+        cmd = CustomCommand(key="t", name="Test", command="echo test")
+        with pytest.raises(FrozenInstanceError):
+            cmd.name = "changed"  # type: ignore[misc]
+
+    def test_custom_command_default_confirm(self) -> None:
+        """CustomCommand should default confirm to False."""
+        cmd = CustomCommand(key="t", name="Test", command="echo test")
+        assert cmd.confirm is False
+
+    def test_custom_command_with_confirm(self) -> None:
+        """CustomCommand should accept confirm=True."""
+        cmd = CustomCommand(key="t", name="Test", command="echo test", confirm=True)
+        assert cmd.confirm is True
+
+
+class TestParseCustomCommands:
+    """Tests for custom_commands parsing in load_config()."""
+
+    def test_custom_commands_parsed(self, tmp_path: Path) -> None:
+        """Config with two custom commands should parse correctly."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text(
+            "custom_commands:\n"
+            "  t:\n"
+            "    name: Test\n"
+            "    command: echo test\n"
+            "  r:\n"
+            "    name: Run\n"
+            "    command: ./run.sh\n"
+        )
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            config = load_config()
+
+        assert len(config.custom_commands) == 2
+        cmd_t = next(c for c in config.custom_commands if c.key == "t")
+        assert cmd_t.name == "Test"
+        assert cmd_t.command == "echo test"
+        assert cmd_t.confirm is False
+
+        cmd_r = next(c for c in config.custom_commands if c.key == "r")
+        assert cmd_r.name == "Run"
+        assert cmd_r.command == "./run.sh"
+
+    def test_custom_commands_missing_name(self, tmp_path: Path) -> None:
+        """Entry without name should raise ConfigError."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text("custom_commands:\n  t:\n    command: echo test\n")
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            with pytest.raises(ConfigError, match="missing required field 'name'"):
+                load_config()
+
+    def test_custom_commands_missing_command(self, tmp_path: Path) -> None:
+        """Entry without command should raise ConfigError."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text("custom_commands:\n  t:\n    name: Test\n")
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            with pytest.raises(ConfigError, match="missing required field 'command'"):
+                load_config()
+
+    def test_custom_commands_key_too_long(self, tmp_path: Path) -> None:
+        """Key with multiple characters should raise ConfigError."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text(
+            "custom_commands:\n  ab:\n    name: Test\n    command: echo test\n"
+        )
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            with pytest.raises(ConfigError, match="must be a single character"):
+                load_config()
+
+    def test_custom_commands_confirm_default_false(self, tmp_path: Path) -> None:
+        """Entry without confirm should default to False."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text(
+            "custom_commands:\n  t:\n    name: Test\n    command: echo test\n"
+        )
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            config = load_config()
+
+        assert config.custom_commands[0].confirm is False
+
+    def test_custom_commands_confirm_true(self, tmp_path: Path) -> None:
+        """Entry with confirm: true should parse correctly."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text(
+            "custom_commands:\n"
+            "  t:\n"
+            "    name: Test\n"
+            "    command: echo test\n"
+            "    confirm: true\n"
+        )
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            config = load_config()
+
+        assert config.custom_commands[0].confirm is True
+
+    def test_custom_commands_absent_returns_empty(self, tmp_path: Path) -> None:
+        """Config without custom_commands key should return empty tuple."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text("open_workspace_cmd: code .\n")
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            config = load_config()
+
+        assert config.custom_commands == ()
+
+    def test_custom_commands_ignores_unknown_fields(self, tmp_path: Path) -> None:
+        """Entry with extra field should not error and ignore the extra."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text(
+            "custom_commands:\n"
+            "  t:\n"
+            "    name: Test\n"
+            "    command: echo test\n"
+            "    unknown_field: ignored\n"
+        )
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            config = load_config()
+
+        assert len(config.custom_commands) == 1
+        assert config.custom_commands[0].name == "Test"
+
+    def test_custom_commands_empty_map(self, tmp_path: Path) -> None:
+        """custom_commands: {} should return empty tuple."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text("custom_commands: {}\n")
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            config = load_config()
+
+        assert config.custom_commands == ()
+
+    def test_custom_commands_confirm_not_bool(self, tmp_path: Path) -> None:
+        """Entry with non-bool confirm should raise ConfigError."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text(
+            "custom_commands:\n"
+            "  t:\n"
+            "    name: Test\n"
+            "    command: echo test\n"
+            "    confirm: 'yes'\n"
+        )
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            with pytest.raises(ConfigError, match="'confirm' must be a boolean"):
+                load_config()
+
+    def test_custom_commands_entry_not_dict(self, tmp_path: Path) -> None:
+        """Entry that's not a dict should raise ConfigError."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text("custom_commands:\n  t: not a dict\n")
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            with pytest.raises(ConfigError, match="must be a mapping"):
+                load_config()
+
+    def test_custom_commands_not_dict(self, tmp_path: Path) -> None:
+        """custom_commands that's not a dict should raise ConfigError."""
+        config_dir = tmp_path / ".config"
+        config_dir.mkdir()
+        config_file = config_dir / "wk.yml"
+        config_file.write_text("custom_commands:\n  - item1\n  - item2\n")
+
+        with patch("wk.config._find_repo_root", return_value=tmp_path):
+            with pytest.raises(ConfigError, match="must be a mapping"):
+                load_config()

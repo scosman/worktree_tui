@@ -250,14 +250,14 @@ from wk.config import CustomCommand, WkConfig
 
 ## Completion Criteria
 
-- [ ] `CustomCommand` dataclass in `config.py`
-- [ ] `load_config()` parses and validates `custom_commands` from YAML
-- [ ] `action_custom_command()` in `actions.py`
-- [ ] `WkApp` dynamically creates bindings for custom commands
-- [ ] Custom command keys override conflicting built-in bindings
-- [ ] Confirmation dialog shown when `confirm: true`
-- [ ] Custom commands are no-ops on "New Worktree" row
-- [ ] Custom command names appear in footer
-- [ ] All new tests pass
-- [ ] All existing tests still pass
-- [ ] `uv run ./checks.sh` passes (lint, format, types, tests)
+- [x] `CustomCommand` dataclass in `config.py`
+- [x] `load_config()` parses and validates `custom_commands` from YAML
+- [x] `action_custom_command()` in `actions.py`
+- [x] `WkApp` dynamically creates bindings for custom commands
+- [x] Custom command keys override conflicting built-in bindings
+- [x] Confirmation dialog shown when `confirm: true`
+- [x] Custom commands are no-ops on "New Worktree" row
+- [x] Custom command names appear in footer
+- [x] All new tests pass
+- [x] All existing tests still pass
+- [x] `uv run ./checks.sh` passes (lint, format, types, tests)
