@@ -8,7 +8,7 @@ It's uses the excellent [Worktrunk](https://worktrunk.dev) project for operation
 
 ![wt_420](https://github.com/user-attachments/assets/29fb7ed5-f090-405a-ad86-44e93b74f2ec)
 
-Note: this demo also shows a [zellij](https://zellij.dev) based "launch command". See how to configure a launch command below.
+Note: this demo also shows a [zellij](https://zellij.dev) based "launch command" designed for a project with tabs for terminal, claude code, backend server and frontend server. See the [project configuration](#project-configuration) section below for how to configure a launch command for your project.
 
 ## Installing and Setup
 
@@ -28,13 +28,13 @@ wk
 
 ## Project Configuration
 
-You can add custom commands to a config file in your project root, which will extend the features in the TUI:
+You can add custom commands to a config file in your project root, which will appear as features in the TUI:
 
 File `.config/wk.yml`
 
  - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI. Useful for tools like tmux/zellij.
  - restart_workspace_cmd: the "launch workspace" command. If missing, restart option won't appear in TUI
- - custom_commands: a set of custom commands you can invoke from the TUI
+ - custom_commands: a set of custom commands you can invoke from the TUI, from the provided shortcut (single char)
 
 ```yaml
 open_workspace_cmd: tmux ...
