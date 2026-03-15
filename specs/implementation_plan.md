@@ -9,8 +9,8 @@
 
 ## Step 2: `config.py`
 
-- [ ] Implement `WkConfig`, `ConfigError`, `find_repo_root()`, `load_config()`
-- [ ] Tests (spec: `specs/components/config.md`)
+- [x] Implement `WkConfig`, `ConfigError`, `find_repo_root()`, `load_config()`
+- [x] Tests (spec: `specs/components/config.md`)
 
 ## Step 3: `worktree.py`
 
