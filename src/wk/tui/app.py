@@ -75,6 +75,7 @@ class NewWorktreeScreen(ModalScreen[str | None]):
     def on_key(self, event) -> None:
         """Handle escape key to cancel."""
         if event.key == "escape":
+            event.stop()
             self.dismiss(None)
 
 
@@ -134,6 +135,7 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
     def on_key(self, event) -> None:
         """Handle escape key to cancel."""
         if event.key == "escape":
+            event.stop()
             self.dismiss(False)
 
 
@@ -181,6 +183,7 @@ class ErrorNotificationScreen(ModalScreen[None]):
 
     def on_key(self, event) -> None:
         """Handle any key to dismiss."""
+        event.stop()
         self.dismiss(None)
 
 
@@ -238,6 +241,7 @@ class DeleteErrorScreen(ModalScreen[bool]):
     def on_key(self, event) -> None:
         """Handle escape key to cancel."""
         if event.key == "escape":
+            event.stop()
             self.dismiss(False)
 
 
