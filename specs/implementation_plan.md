@@ -22,14 +22,23 @@
 - [x] Implement `is_wrapped()`, `generate_wrapper_zsh()`, `print_shell_commands()`, `run_setup_flow()`
 - [x] Tests (spec: `specs/components/shell.md`)
 
-## Step 5: `actions.py`
+## Step 5: `actions.py` ✅
 
-- [ ] Implement `action_launch()`, `action_jump()`, `action_new()`, `action_delete()`
-- [ ] Tests (spec: `specs/components/actions.md`)
+- [ ] Mark the step as complete in `specs/implementation_plan.md`.
+
+Update the implementation plan to mark Step 5 as complete. Now let me update the phase plan. update the phase 5 completion criteria. and mark them off. delete `test_action_delete_propagates_wt_command_error` test cases by name and description |
+| expected cd command | | expected launch commands |
+- [ ] Tests passing
+- [ ] `uv run ./checks.sh` passes (lint, format, types, tests)
 
 > Depends on: config, worktree
 
-## Step 6: `tui/theme.py` + `tui/worktree_list.py`
+## Step 7: `tui/app.py`
+
+- [ ] Implement `WkApp`, `run_app()`, all action handlers, stderr rendering
+ - [ ] Tests (spec: `specs/components/tui_app.md`, `specs/components/tui_worktree_list.md`)
+    > Grouped: theme is small and a direct prerequisite for the list widget.
+> Depends on: worktree
 
 - [ ] Implement `APP_CSS`, `ThemeColors`
 - [ ] Implement `WorktreeListItem`, `WorktreeList`, relative time helper
