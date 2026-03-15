@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from wk.actions import (
+    action_custom_command,
     action_delete,
     action_jump,
     action_launch,
@@ -234,3 +235,39 @@ class TestActionDelete:
             mock_remove.return_value = None
             result = action_delete("some-feature")
             assert result is None
+
+
+class TestActionCustomCommand:
+    """Tests for action_custom_command function."""
+
+    def test_action_custom_command_returns_cd_and_cmd(self) -> None:
+        """action_custom_command should return cd + command."""
+        worktree = make_worktree(
+            name="feature-custom",
+            path=Path("/project/.worktrees/feature-custom"),
+        )
+
+        result = action_custom_command(worktree, "./run_tests.sh")
+
+        assert len(result) == 2
+        assert result[0] == "cd /project/.worktrees/feature-custom"
+        assert result[1] == "./run_tests.sh"
+
+    def test_action_custom_command_quotes_path(self) -> None:
+        """action_custom_command should shell-quote paths with spaces."""
+        worktree = make_worktree(path="/my path/with spaces/tree")
+
+        result = action_custom_command(worktree, "echo hello")
+
+        assert len(result) == 2
+        assert result[0] == "cd '/my path/with spaces/tree'"
+        assert result[1] == "echo hello"
+
+    def test_action_custom_command_complex_command(self) -> None:
+        """action_custom_command should pass command through as-is."""
+        worktree = make_worktree(path="/project/tree")
+
+        result = action_custom_command(worktree, "npm test && npm run build")
+
+        assert len(result) == 2
+        assert result[1] == "npm test && npm run build"

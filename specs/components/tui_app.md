@@ -33,16 +33,21 @@ def run_app(worktrees: list[Worktree], config: WkConfig) -> list[str]:
 
 ## Key Bindings
 
+Built-in bindings are created in `__init__`, then custom command bindings from `config.custom_commands` are appended. Custom command keys **override** any conflicting built-in binding (the built-in binding for that key is removed before appending the custom one).
+
 ```python
-BINDINGS = [
-    Binding("q", "quit", "Quit"),
-    Binding("escape", "quit", "Quit", show=False),
-    Binding("enter", "select", "Launch"),
-    Binding("j", "jump", "Jump"),
-    Binding("r", "restart", "Restart"),
-    Binding("d", "delete", "Delete"),
-    Binding("n", "new", "New"),
-]
+# Built-in bindings (created first):
+Binding("q", "quit", "Quit"),
+Binding("escape", "quit", "Quit", show=False),
+Binding("j", "jump", "Jump", show=False),
+Binding("d", "delete", "Delete"),
+Binding("n", "new", "New"),
+# Conditional built-ins:
+Binding("l", "launch", "Launch"),        # only if open_workspace_cmd
+Binding("r", "restart", "Restart"),      # only if restart_workspace_cmd
+
+# Then for each custom command (e.g. key="t", name="Terminate"):
+Binding("t", "custom_t", "Terminate"),
 ```
 
 Bindings are shown in a footer bar via Textual's built-in `Footer` widget.
@@ -78,6 +83,14 @@ Bindings are shown in a footer bar via Textual's built-in `Footer` widget.
 - On submit: calls `actions.action_new(name, config)`, stores launch commands in `shell_commands`, exits app.
 - On cancel (Esc): returns to list.
 - Error from `wt switch --create`: displayed as a notification/toast.
+
+### Custom command actions (dynamic keys)
+
+- Ignored on "New Worktree" row.
+- On worktree row:
+  - If the command's `confirm` is `true`: show a confirmation dialog ("Run '<name>' on '<worktree_name>'?"). On confirm, proceed. On cancel, return to list.
+  - Calls `actions.action_custom_command(worktree, command)`, stores in `shell_commands`, exits app.
+- Dynamic dispatch: since the key is user-defined, `WkApp` registers each custom command with a unique action name (e.g. `custom_<key>`) and uses a generic handler that looks up the command by key.
 
 ### `action_quit` (q / Esc)
 
@@ -119,7 +132,7 @@ Textual's `App.run()` accepts a `file` parameter (added in Textual 0.x) that red
 
 ## Dependencies (internal)
 
-- `actions` — `action_launch`, `action_jump`, `action_restart`, `action_new`, `action_delete`
+- `actions` — `action_launch`, `action_jump`, `action_restart`, `action_new`, `action_delete`, `action_custom_command`
 - `worktree` — `Worktree` dataclass
 - `config` — `WkConfig` dataclass
 - `tui.worktree_list` — `WorktreeList` widget
@@ -156,3 +169,10 @@ Use Textual's built-in testing framework (`App.run_test()`) which provides an as
 | 17 | Error on new shows notification | Pilot: mock `action_new` raising `WtCommandError`, submit name, assert error notification shown |
 | 18 | App with no worktrees shows only "New Worktree" | Pilot: launch with empty list, assert single item |
 | 19 | App renders to stderr (stdout stays clean) | Integration: run app, assert nothing written to stdout |
+| 20 | Custom command key triggers action and exits | Pilot: config with custom command on key `t`, press `t` on worktree, assert `shell_commands` has cd + custom command |
+| 21 | Custom command with `confirm: true` shows confirmation dialog | Pilot: config with `confirm: true` custom command, press key, assert confirmation dialog visible |
+| 22 | Custom command confirm dialog — confirm executes | Pilot: press key, confirm, assert `shell_commands` set and app exits |
+| 23 | Custom command confirm dialog — cancel returns to list | Pilot: press key, cancel, assert app still running |
+| 24 | Custom command on "New Worktree" row is a no-op | Pilot: navigate to index 0, press custom key, assert app still running |
+| 25 | Custom command key overrides built-in binding | Pilot: config with custom command on key `d`, press `d`, assert custom command runs (not delete) |
+| 26 | Multiple custom commands all appear in footer | Pilot: config with 2 custom commands, assert both names visible in footer |

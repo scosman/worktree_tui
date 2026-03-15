@@ -60,9 +60,12 @@ A keyboard-navigable list of worktrees.
 | `d`       | Delete worktree           |
 | `n`       | New worktree              |
 | `q`/`Esc` | Quit                      |
+| Custom    | Defined in `custom_commands` config |
 
 - On "New Worktree" row: `Enter` also triggers the new worktree flow.
 - `j`, `r`, `d`, `Enter` (Launch) only apply to existing worktree rows.
+- Custom commands only apply to existing worktree rows.
+- Custom command keys can override any built-in binding.
 
 ### New Worktree Flow
 
@@ -131,10 +134,24 @@ Config file: `.config/wk.yml` (relative to the **git repo root**).
 ```yaml
 open_workspace_cmd: ".config/wt/start.sh"
 restart_workspace_cmd: ".config/wt/start.sh"
+custom_commands:
+  t:
+    name: Terminate
+    command: "wt remove --force $(basename $PWD)"
+    confirm: true
+  s:
+    name: Status
+    command: "git status"
 ```
 
 - `open_workspace_cmd`: shell command to run when launching a worktree workspace. Executed in the worktree directory. If missing, Launch just does `cd`.
 - `restart_workspace_cmd`: shell command to run when restarting a worktree workspace. Executed in the worktree directory. If missing, Restart falls back to Jump (just `cd`).
+- `custom_commands`: a map of single-character keys to custom command definitions. Each definition has:
+  - `name` (required): display name shown in the footer bar.
+  - `command` (required): shell command to execute. Always runs after `cd`-ing into the worktree directory.
+  - `confirm` (optional, default `false`): if `true`, show a confirmation dialog ("Run '<name>' on '<worktree>'? (y/n)") before executing.
+  - Custom command keys **override** built-in bindings if they conflict.
+  - Custom commands only apply to existing worktree rows (ignored on "+ New Worktree").
 
 ## Data Source
 

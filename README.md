@@ -31,8 +31,14 @@ File `.config/wk.yml`
 
  - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI. Useful for tools like tmux/zellij.
  - restart_workspace_cmd: the "launch workspace" command. If missing, restart option won't appear in TUI
+ - custom_commands: a set of custom commands you can invoke from the TUI
 
 ```yaml
 open_workspace_cmd: tmux ...
 restart_workspace_cmd: tmux delete ... & tmux ...
+
+custom_commands:
+  t:
+    name: Test
+    command: npm test
 ```

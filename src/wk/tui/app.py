@@ -16,16 +16,63 @@ from textual.widgets import (
 from textual.worker import Worker, WorkerState
 
 from wk.actions import (
+    action_custom_command,
     action_delete,
     action_jump,
     action_launch,
     action_new,
     action_restart,
 )
-from wk.config import WkConfig
+from wk.config import CustomCommand, WkConfig
 from wk.tui.theme import APP_CSS
 from wk.tui.worktree_list import WorktreeList
 from wk.worktree import Worktree, WtCommandError
+
+
+class DialogMixin:
+    """Mixin for dialogs with shared navigation and key handling."""
+
+    def handle_escape(self, event) -> bool:
+        """Handle escape key to close dialog.
+
+        Returns True if the event was handled.
+        """
+        if event.key == "escape":
+            event.stop()
+            self.dismiss(None)  # type: ignore[attr-defined]
+            return True
+        return False
+
+    def navigate_buttons(self, event) -> bool:
+        """Handle left/right arrow key navigation between buttons.
+
+        Returns True if the event was handled.
+        """
+        if event.key not in ("left", "right"):
+            return False
+
+        event.stop()
+        buttons = list(self.query(Button))  # type: ignore[attr-defined]
+        if len(buttons) < 2:
+            return True
+
+        focused = self.focused  # type: ignore[attr-defined]
+        if focused not in buttons:
+            buttons[0].focus()
+            return True
+
+        idx = buttons.index(focused)
+        if event.key == "right":
+            buttons[(idx + 1) % len(buttons)].focus()
+        else:
+            buttons[(idx - 1) % len(buttons)].focus()
+        return True
+
+    def handle_dialog_keys(self, event) -> None:
+        """Handle escape and arrow navigation for dialogs."""
+        if self.handle_escape(event):
+            return
+        self.navigate_buttons(event)
 
 
 class LoadingScreen(ModalScreen[None]):
@@ -60,7 +107,7 @@ class LoadingScreen(ModalScreen[None]):
             yield LoadingIndicator()
 
 
-class NewWorktreeScreen(ModalScreen[str | None]):
+class NewWorktreeScreen(ModalScreen[str | None], DialogMixin):
     """Modal screen for entering a new worktree name.
 
     Returns the entered name on submit, or None on cancel.
@@ -114,13 +161,11 @@ class NewWorktreeScreen(ModalScreen[str | None]):
             self.dismiss(input_widget.value)
 
     def on_key(self, event) -> None:
-        """Handle escape key to cancel."""
-        if event.key == "escape":
-            event.stop()
-            self.dismiss(None)
+        """Handle escape key to cancel. No left right so text box still works."""
+        self.handle_escape(event)
 
 
-class ConfirmDeleteScreen(ModalScreen[bool]):
+class ConfirmDeleteScreen(ModalScreen[bool], DialogMixin):
     """Modal screen for confirming worktree deletion.
 
     Returns True on confirm, False on cancel.
@@ -166,6 +211,12 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
                 yield Button("Delete", variant="error", id="confirm")
                 yield Button("Cancel", variant="default", id="cancel")
 
+    def on_mount(self) -> None:
+        """Focus the first button on mount."""
+        buttons = list(self.query(Button))
+        if buttons:
+            buttons[0].focus()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press."""
         if event.button.id == "confirm":
@@ -174,10 +225,8 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
             self.dismiss(False)
 
     def on_key(self, event) -> None:
-        """Handle escape key to cancel."""
-        if event.key == "escape":
-            event.stop()
-            self.dismiss(False)
+        """Handle escape key and arrow navigation."""
+        self.handle_dialog_keys(event)
 
 
 class ErrorNotificationScreen(ModalScreen[None]):
@@ -228,7 +277,7 @@ class ErrorNotificationScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
-class DeleteErrorScreen(ModalScreen[bool]):
+class DeleteErrorScreen(ModalScreen[bool], DialogMixin):
     """Modal screen for delete errors with force option.
 
     Returns True to force delete, False to cancel.
@@ -275,15 +324,84 @@ class DeleteErrorScreen(ModalScreen[bool]):
                 yield Button("Cancel", variant="default", id="cancel")
                 yield Button("Force Delete", variant="error", id="force")
 
+    def on_mount(self) -> None:
+        """Focus the first button on mount."""
+        buttons = list(self.query(Button))
+        if buttons:
+            buttons[0].focus()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press."""
         self.dismiss(event.button.id == "force")
 
     def on_key(self, event) -> None:
-        """Handle escape key to cancel."""
-        if event.key == "escape":
-            event.stop()
+        """Handle escape key and arrow navigation."""
+        self.handle_dialog_keys(event)
+
+
+class ConfirmCustomCommandScreen(ModalScreen[bool], DialogMixin):
+    """Modal screen for confirming a custom command execution.
+
+    Returns True on confirm, False on cancel.
+    """
+
+    DEFAULT_CSS = """
+    ConfirmCustomCommandScreen {
+        align: center middle;
+    }
+
+    ConfirmCustomCommandScreen > Vertical {
+        width: 50;
+        height: auto;
+        background: $background;
+        border: thick $accent;
+        padding: 1 2;
+    }
+
+    ConfirmCustomCommandScreen Label {
+        margin-bottom: 1;
+    }
+
+    ConfirmCustomCommandScreen .buttons {
+        layout: horizontal;
+        width: 100%;
+        height: auto;
+    }
+
+    ConfirmCustomCommandScreen Button {
+        width: 1fr;
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, command_name: str, worktree_name: str) -> None:
+        super().__init__()
+        self._command_name = command_name
+        self._worktree_name = worktree_name
+
+    def compose(self):
+        with Vertical():
+            yield Label(f"Run '{self._command_name}' on '{self._worktree_name}'?")
+            with Vertical(classes="buttons"):
+                yield Button("Run", variant="primary", id="confirm")
+                yield Button("Cancel", variant="default", id="cancel")
+
+    def on_mount(self) -> None:
+        """Focus the first button on mount."""
+        buttons = list(self.query(Button))
+        if buttons:
+            buttons[0].focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press."""
+        if event.button.id == "confirm":
+            self.dismiss(True)
+        else:
             self.dismiss(False)
+
+    def on_key(self, event) -> None:
+        """Handle escape key and arrow navigation."""
+        self.handle_dialog_keys(event)
 
 
 class WkApp(App):
@@ -307,6 +425,10 @@ class WkApp(App):
         self._config = config
         self.shell_commands = []
 
+        # Store custom commands for lookup
+        self._custom_commands = {cmd.key: cmd for cmd in config.custom_commands}
+        self._pending_custom_cmd: CustomCommand | None = None
+
         bindings = [
             Binding("q", "quit", "Quit"),
             Binding("escape", "quit", "Quit", show=False),
@@ -319,7 +441,20 @@ class WkApp(App):
         if config.restart_workspace_cmd:
             bindings.append(Binding("r", "restart", "Restart"))
 
+        # Remove bindings that conflict with custom commands
+        custom_keys = set(self._custom_commands.keys())
+        bindings = [b for b in bindings if b.key not in custom_keys]
+
+        # Add custom command bindings
+        for cmd in config.custom_commands:
+            bindings.append(Binding(cmd.key, f"custom_{cmd.key}", cmd.name))
+
         self._bindings = BindingsMap(bindings)
+
+        # Create dynamic action handlers for custom commands
+        for cmd in config.custom_commands:
+            method_name = f"action_custom_{cmd.key}"
+            setattr(self, method_name, self._make_custom_handler(cmd))
 
     def compose(self):
         """Build the main screen layout."""
@@ -373,6 +508,48 @@ class WkApp(App):
     def action_new(self) -> None:
         """Create new worktree (n)."""
         self._show_new_input()
+
+    def _make_custom_handler(self, cmd: CustomCommand):
+        """Create a handler function for a custom command."""
+
+        def handler() -> None:
+            self._run_custom_command(cmd)
+
+        return handler
+
+    def _run_custom_command(self, cmd: CustomCommand) -> None:
+        """Execute a custom command on the selected worktree."""
+        list_widget = self.query_one(WorktreeList)
+        worktree = list_widget.selected_worktree
+        if worktree is None:
+            return  # No-op on "New Worktree" row
+
+        if cmd.confirm:
+            self._pending_custom_cmd = cmd
+            self.push_screen(
+                ConfirmCustomCommandScreen(cmd.name, worktree.name),
+                self._handle_custom_confirm,
+            )
+        else:
+            self.shell_commands = action_custom_command(worktree, cmd.command)
+            self.exit()
+
+    def _handle_custom_confirm(self, confirmed: bool | None) -> None:
+        """Handle result from custom command confirmation dialog."""
+        if not confirmed:
+            return
+
+        list_widget = self.query_one(WorktreeList)
+        worktree = list_widget.selected_worktree
+        if worktree is None:
+            return
+
+        cmd = self._pending_custom_cmd
+        if cmd is None:
+            return
+
+        self.shell_commands = action_custom_command(worktree, cmd.command)
+        self.exit()
 
     async def action_quit(self) -> None:
         """Exit with empty commands."""
