@@ -299,11 +299,16 @@ class WkApp(App):
             from wk.worktree import list_worktrees
 
             self._worktrees = list_worktrees()
-            # Use synchronous refresh via recompose
-            list_widget.remove()
-            self.mount(WorktreeList(self._worktrees), after=0)
+            # Defer DOM manipulation to avoid hanging inside push_screen callback
+            self.call_later(self._refresh_worktree_list)
         except WtCommandError as e:
             self._show_error(f"Failed to delete worktree: {e.stderr.strip()}")
+
+    def _refresh_worktree_list(self) -> None:
+        """Replace the worktree list widget with a fresh one."""
+        list_widget = self.query_one(WorktreeList)
+        list_widget.remove()
+        self.mount(WorktreeList(self._worktrees), after=0)
 
     def _show_error(self, message: str) -> None:
         """Show an error notification."""
