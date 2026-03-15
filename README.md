@@ -1,6 +1,8 @@
 # Worktree TUI
 
-This is an interactive TUI for managing git worktrees, allowing developing several features in parallel. It's uses the excellent [Worktrunk](https://worktrunk.dev) project for operations, and adds a TUI (Terminal UI).
+This is an interactive TUI for managing git worktrees, allowing developing several features in parallel. The `wk` command is all you need to create worktrees, manage worktrees, jump to worktrees, launch workspaces, and more.
+
+It's wraps the excellent [Worktrunk](https://worktrunk.dev) project for worktree operations, adding a TUI (Terminal UI) so you don't need to memorize commands or type branch names.
 
 ## Preview
 
@@ -26,17 +28,24 @@ wk
 
 ## Project Configuration
 
-You can add custom commands to a config file in your project root, which will appear as features in the TUI:
+### Worktrunk Configuration
 
-File `.config/wk.yml`
+Configure [Worktrunk](https://worktrunk.dev) following their guide to start. You can add things like hooks to run after creating a workspace (`npm install`, etc). This project wraps their CLI with a TUI.
 
+### `wk` Configuration
+
+In the wk config you can add custom commands which will appear as features in the `wk` TUI:
+
+File `PROJECT_ROOT/.config/wk.yml`
+
+**Fields**
  - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI. Useful for tools like tmux/zellij.
- - restart_workspace_cmd: the "launch workspace" command. If missing, restart option won't appear in TUI
- - custom_commands: a set of custom commands you can invoke from the TUI, from the provided shortcut (single char)
+ - restart_workspace_cmd: a command to restart a workspace (eg, killing a tmux session). If missing, restart option won't appear in TUI.
+ - custom_commands: a set of custom commands you can invoke from the TUI, from the provided shortcut character. Eg: run tests on a worktree.
 
 ```yaml
-open_workspace_cmd: tmux ...
-restart_workspace_cmd: tmux delete ... & tmux ...
+open_workspace_cmd: tmux new-session ...
+restart_workspace_cmd: tmux kill-session ... && tmux new-session ...
 
 custom_commands:
   t:
