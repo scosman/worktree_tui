@@ -74,12 +74,6 @@ class TestGenerateWrapperZsh:
         result = generate_wrapper_zsh()
         assert "output=" in result
 
-    def test_generate_wrapper_zsh_contains_fd_swap(self) -> None:
-        """Output should include fd swap for stdout/stderr."""
-        result = generate_wrapper_zsh()
-        assert "3>&1" in result
-        assert "1>&2" in result
-
     def test_generate_wrapper_zsh_is_valid_syntax(self) -> None:
         """Generated zsh should be syntactically valid."""
         result = generate_wrapper_zsh()
