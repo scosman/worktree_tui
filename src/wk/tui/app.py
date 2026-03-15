@@ -28,6 +28,52 @@ from wk.tui.worktree_list import WorktreeList
 from wk.worktree import Worktree, WtCommandError
 
 
+class DialogMixin:
+    """Mixin for dialogs with shared navigation and key handling."""
+
+    def handle_escape(self, event) -> bool:
+        """Handle escape key to close dialog.
+
+        Returns True if the event was handled.
+        """
+        if event.key == "escape":
+            event.stop()
+            self.dismiss(None)  # type: ignore[attr-defined]
+            return True
+        return False
+
+    def navigate_buttons(self, event) -> bool:
+        """Handle left/right arrow key navigation between buttons.
+
+        Returns True if the event was handled.
+        """
+        if event.key not in ("left", "right"):
+            return False
+
+        event.stop()
+        buttons = list(self.query(Button))  # type: ignore[attr-defined]
+        if len(buttons) < 2:
+            return True
+
+        focused = self.focused  # type: ignore[attr-defined]
+        if focused not in buttons:
+            buttons[0].focus()
+            return True
+
+        idx = buttons.index(focused)
+        if event.key == "right":
+            buttons[(idx + 1) % len(buttons)].focus()
+        else:
+            buttons[(idx - 1) % len(buttons)].focus()
+        return True
+
+    def handle_dialog_keys(self, event) -> None:
+        """Handle escape and arrow navigation for dialogs."""
+        if self.handle_escape(event):
+            return
+        self.navigate_buttons(event)
+
+
 class LoadingScreen(ModalScreen[None]):
     """Modal screen showing a loading spinner during long operations."""
 
@@ -60,7 +106,7 @@ class LoadingScreen(ModalScreen[None]):
             yield LoadingIndicator()
 
 
-class NewWorktreeScreen(ModalScreen[str | None]):
+class NewWorktreeScreen(ModalScreen[str | None], DialogMixin):
     """Modal screen for entering a new worktree name.
 
     Returns the entered name on submit, or None on cancel.
@@ -114,13 +160,11 @@ class NewWorktreeScreen(ModalScreen[str | None]):
             self.dismiss(input_widget.value)
 
     def on_key(self, event) -> None:
-        """Handle escape key to cancel."""
-        if event.key == "escape":
-            event.stop()
-            self.dismiss(None)
+        """Handle escape key to cancel. No left right so text box still works."""
+        self.handle_escape(event)
 
 
-class ConfirmDeleteScreen(ModalScreen[bool]):
+class ConfirmDeleteScreen(ModalScreen[bool], DialogMixin):
     """Modal screen for confirming worktree deletion.
 
     Returns True on confirm, False on cancel.
@@ -166,6 +210,12 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
                 yield Button("Delete", variant="error", id="confirm")
                 yield Button("Cancel", variant="default", id="cancel")
 
+    def on_mount(self) -> None:
+        """Focus the first button on mount."""
+        buttons = list(self.query(Button))
+        if buttons:
+            buttons[0].focus()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press."""
         if event.button.id == "confirm":
@@ -174,10 +224,8 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
             self.dismiss(False)
 
     def on_key(self, event) -> None:
-        """Handle escape key to cancel."""
-        if event.key == "escape":
-            event.stop()
-            self.dismiss(False)
+        """Handle escape key and arrow navigation."""
+        self.handle_dialog_keys(event)
 
 
 class ErrorNotificationScreen(ModalScreen[None]):
@@ -228,7 +276,7 @@ class ErrorNotificationScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
-class DeleteErrorScreen(ModalScreen[bool]):
+class DeleteErrorScreen(ModalScreen[bool], DialogMixin):
     """Modal screen for delete errors with force option.
 
     Returns True to force delete, False to cancel.
@@ -275,15 +323,19 @@ class DeleteErrorScreen(ModalScreen[bool]):
                 yield Button("Cancel", variant="default", id="cancel")
                 yield Button("Force Delete", variant="error", id="force")
 
+    def on_mount(self) -> None:
+        """Focus the first button on mount."""
+        buttons = list(self.query(Button))
+        if buttons:
+            buttons[0].focus()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press."""
         self.dismiss(event.button.id == "force")
 
     def on_key(self, event) -> None:
-        """Handle escape key to cancel."""
-        if event.key == "escape":
-            event.stop()
-            self.dismiss(False)
+        """Handle escape key and arrow navigation."""
+        self.handle_dialog_keys(event)
 
 
 class WkApp(App):
