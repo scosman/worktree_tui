@@ -14,8 +14,8 @@
 
 ## Step 3: `worktree.py`
 
-- [ ] Implement `Worktree`, `WtCommandError`, `list_worktrees()`, `create_worktree()`, `remove_worktree()`, `find_worktree()`
-- [ ] Tests (spec: `specs/components/worktree.md`)
+- [x] Implement `Worktree`, `WtCommandError`, `list_worktrees()`, `create_worktree()`, `remove_worktree()`, `find_worktree()`
+- [x] Tests (spec: `specs/components/worktree.md`)
 
 ## Step 4: `shell.py`
 
