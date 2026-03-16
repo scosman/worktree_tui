@@ -1,5 +1,7 @@
 """Textual application for wk TUI."""
 
+import random
+
 from textual.app import App, Binding
 from textual.binding import BindingsMap
 from textual.containers import Vertical
@@ -404,6 +406,19 @@ class ConfirmCustomCommandScreen(ModalScreen[bool], DialogMixin):
         self.handle_dialog_keys(event)
 
 
+_WK_TITLES = [
+    "wk it out",
+    "wk through it",
+    "Whistle while you wk",
+    "wk in progress",
+    "wk of art",
+    "Nice wk if you can get it",
+    "All in a day's wk",
+    "wk hard, play hard",
+    "wk smarter, not harder",
+]
+
+
 class WkApp(App):
     """Main wk TUI application.
 
@@ -421,6 +436,7 @@ class WkApp(App):
 
     def __init__(self, worktrees: list[Worktree], config: WkConfig) -> None:
         super().__init__()
+        self.title = random.choice(_WK_TITLES)
         self._worktrees = worktrees
         self._config = config
         self.shell_commands = []
