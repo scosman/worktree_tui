@@ -30,16 +30,16 @@ wk
 
 ### Worktrunk Configuration
 
-Configure [Worktrunk](https://worktrunk.dev) following their guide to start. You can add things like hooks to run after creating a workspace (`npm install`, etc). This project wraps their CLI with a TUI, so it must be setup properly before using `wk`.
+Configure [Worktrunk](https://worktrunk.dev) following their guide to start. You can add things like hooks to run after creating a workspace (`npm install`, etc). This project wraps their CLI with a TUI, so Worktrunk must be setup before using `wk`.
 
 ### `wk` Configuration
 
-In `PROJECT_ROOT/.config/wk.yml` you can add custom commands which will appear as features in the `wk` TUI:
+In `PROJECT_ROOT/.config/wk.yml` you can add custom commands which will appear as actions you can launch from the `wk` TUI:
 
 **Fields**
  - open_workspace_cmd: the "launch workspace" command. If missing, launch option won't appear in TUI. Useful for tools like tmux/zellij.
  - restart_workspace_cmd: a command to restart a workspace (eg, killing a tmux session). If missing, restart option won't appear in TUI.
- - custom_commands: a set of custom commands you can invoke from the TUI, from the provided shortcut character. Eg: run tests on a worktree.
+ - custom_commands: a set of custom commands you can invoke from the TUI, from the provided shortcut character. Eg: "t" runs tests on a worktree.
 
 **Example `PROJECT_ROOT/.config/wk.yml`**
 ```yaml
