@@ -72,6 +72,15 @@ WorktreeList > ListItem:hover {
     width: auto;
 }
 
+/* Filter indicator */
+#filter-indicator {
+    color: $accent;
+    text-style: bold;
+    padding: 0 2;
+    height: 1;
+    display: none;
+}
+
 /* Footer */
 Footer {
     background: $background;

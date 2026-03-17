@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from textual.message import Message
 from textual.widgets import ListItem, ListView, Static
 
 from wk.worktree import Worktree
@@ -80,10 +81,14 @@ class WorktreeListItem(ListItem):
 
 
 class WorktreeList(ListView):
-    """Navigable list of worktrees.
+    """Navigable list of worktrees with type-to-filter support.
 
-    Emits no custom messages — the parent app reads the selected item
-    and decides what to do.
+    Filtering:
+        - Press "/" to enter filter mode
+        - Type to filter (matches name and branch)
+        - Backspace removes last char
+        - Escape exits filter mode (clears filter)
+        - "New Worktree" row is hidden while filtering
     """
 
     DEFAULT_CSS = """
@@ -93,19 +98,72 @@ class WorktreeList(ListView):
     }
     """
 
+    class FilterChanged(Message):
+        """Posted when filter mode or text changes."""
+
+        def __init__(self, filter_text: str, filtering: bool) -> None:
+            self.filter_text = filter_text
+            self.filtering = filtering
+            super().__init__()
+
     def __init__(self, worktrees: list[Worktree]) -> None:
         """Build the list: "New Worktree" row + one row per worktree.
 
         Args:
             worktrees: List of worktrees to display (caller should sort).
         """
-        # Build children: "New Worktree" first, then one per worktree
-        items = [WorktreeListItem(None)]  # "New Worktree" row
-        items.extend(WorktreeListItem(wt) for wt in worktrees)
+        self._all_worktrees = worktrees
+        self._filter_text = ""
+        self._filtering = False
+        super().__init__(*self._build_items(), initial_index=self._default_index())
 
-        # Default to first worktree (index 1) if available, else index 0
-        initial_index = 1 if len(items) > 1 else 0
-        super().__init__(*items, initial_index=initial_index)
+    def _build_items(self) -> list[WorktreeListItem]:
+        """Build list items based on current filter state."""
+        filtered = self._filtered_worktrees
+        # Only show "New Worktree" when not filtering
+        if self._filtering:
+            return [WorktreeListItem(wt) for wt in filtered]
+        else:
+            items = [WorktreeListItem(None)]  # "New Worktree" row
+            items.extend(WorktreeListItem(wt) for wt in filtered)
+            return items
+
+    def _default_index(self) -> int:
+        """Return default index: first worktree if available, else 0."""
+        items = self._build_items()
+        if self._filtering:
+            return 0 if items else 0
+        return 1 if len(items) > 1 else 0
+
+    @property
+    def _filtered_worktrees(self) -> list[Worktree]:
+        """Return worktrees filtered by current filter text."""
+        if not self._filter_text:
+            return self._all_worktrees
+        filter_lower = self._filter_text.lower()
+        return [
+            wt
+            for wt in self._all_worktrees
+            if filter_lower in wt.name.lower() or filter_lower in wt.branch.lower()
+        ]
+
+    @property
+    def filter_text(self) -> str:
+        """Current filter text."""
+        return self._filter_text
+
+    @property
+    def is_filtering(self) -> bool:
+        """Whether currently in filter mode."""
+        return self._filtering
+
+    def start_filter(self) -> None:
+        """Enter filter mode (called by app action)."""
+        if not self._filtering:
+            self._filtering = True
+            self._filter_text = ""
+            self._refresh_list(select_first=True)
+            self.post_message(self.FilterChanged(self._filter_text, self._filtering))
 
     @property
     def selected_worktree(self) -> Worktree | None:
@@ -119,31 +177,104 @@ class WorktreeList(ListView):
         # highlighted_child returns ListItem, but we only add WorktreeListItem children
         return getattr(item, "worktree", None)
 
+    def on_key(self, event) -> None:
+        """Handle key events for filtering."""
+        key = event.key
+
+        # "/" enters filter mode
+        if key == "/" and not self._filtering:
+            event.stop()
+            self._filtering = True
+            self._filter_text = ""
+            self._refresh_list(select_first=True)
+            self.post_message(self.FilterChanged(self._filter_text, self._filtering))
+            return
+
+        if not self._filtering:
+            return  # Only handle filter keys when in filter mode
+
+        # Escape exits filter mode
+        if key == "escape":
+            event.stop()
+            self._filtering = False
+            self._filter_text = ""
+            self._refresh_list(select_first=False)
+            self.post_message(self.FilterChanged(self._filter_text, self._filtering))
+            return
+
+        # Backspace removes last char, or exits if empty
+        if key == "backspace":
+            event.stop()
+            if self._filter_text:
+                self._filter_text = self._filter_text[:-1]
+                self._refresh_list(select_first=True)
+            else:
+                self._filtering = False
+                self._refresh_list(select_first=False)
+            self.post_message(self.FilterChanged(self._filter_text, self._filtering))
+            return
+
+        # Printable characters add to filter
+        if len(key) == 1 and key.isprintable():
+            event.stop()
+            self._filter_text += key
+            self._refresh_list(select_first=True)
+            self.post_message(self.FilterChanged(self._filter_text, self._filtering))
+
+    def _refresh_list(self, select_first: bool = False) -> None:
+        """Rebuild the list based on current filter.
+
+        Args:
+            select_first: If True, select first item. Otherwise preserve selection.
+        """
+        # Store current selection if not selecting first
+        current_worktree = None if select_first else self.selected_worktree
+
+        # Clear and rebuild
+        self.clear()
+
+        items = self._build_items()
+        for item in items:
+            self.append(item)
+
+        if select_first:
+            # Select first item
+            self.index = 0 if items else 0
+        elif current_worktree is not None:
+            # Try to restore selection by name
+            for i, item in enumerate(items):
+                if item.worktree and item.worktree.name == current_worktree.name:
+                    self.index = i
+                    return
+            # Fall back to default
+            self.index = self._default_index()
+        else:
+            self.index = self._default_index()
+
     async def refresh_worktrees(self, worktrees: list[Worktree]) -> None:
         """Replace the list contents with a new set of worktrees.
 
-        Preserves cursor position if possible (clamps to list bounds).
+        Preserves filter state and cursor position if possible.
         Used after delete to refresh without full app restart.
 
         Args:
             worktrees: New list of worktrees to display.
         """
-        # Remember current cursor position
-        current_index = self.index
+        self._all_worktrees = worktrees
+        await self._refresh_list_async()
 
-        # Clear existing children (must be awaited)
+    async def _refresh_list_async(self) -> None:
+        """Async version of _refresh_list for use after delete."""
+        current_worktree = self.selected_worktree
         await self.clear()
 
-        # Build new children
-        items = [WorktreeListItem(None)]
-        items.extend(WorktreeListItem(wt) for wt in worktrees)
-
-        # Add new children
+        items = self._build_items()
         for item in items:
             self.append(item)
 
-        # Clamp cursor to new list bounds
-        max_index = len(items) - 1
-        if current_index is None:
-            current_index = 0
-        self.index = min(current_index, max_index)
+        if current_worktree is not None:
+            for i, item in enumerate(items):
+                if item.worktree and item.worktree.name == current_worktree.name:
+                    self.index = i
+                    return
+        self.index = self._default_index()

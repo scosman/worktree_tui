@@ -14,6 +14,7 @@ from textual.widgets import (
     Label,
     ListView,
     LoadingIndicator,
+    Static,
 )
 from textual.worker import Worker, WorkerState
 
@@ -448,6 +449,7 @@ class WkApp(App):
         bindings = [
             Binding("q", "quit", "Quit"),
             Binding("escape", "quit", "Quit", show=False),
+            Binding("slash", "filter", "Filter"),
             Binding("j", "jump", "Jump", show=False),
             Binding("d", "delete", "Delete"),
             Binding("n", "new", "New"),
@@ -475,8 +477,21 @@ class WkApp(App):
     def compose(self):
         """Build the main screen layout."""
         yield Header()
+        yield Static("", id="filter-indicator")
         yield WorktreeList(self._worktrees)
         yield Footer()
+
+    def on_worktree_list_filter_changed(
+        self, event: WorktreeList.FilterChanged
+    ) -> None:
+        """Update filter indicator when filter changes."""
+        indicator = self.query_one("#filter-indicator", Static)
+        if event.filtering:
+            indicator.update(f"Filter: {event.filter_text}")
+            indicator.add_class("visible")
+        else:
+            indicator.update("")
+            indicator.remove_class("visible")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle Enter key on the worktree list."""
@@ -524,6 +539,11 @@ class WkApp(App):
     def action_new(self) -> None:
         """Create new worktree (n)."""
         self._show_new_input()
+
+    def action_filter(self) -> None:
+        """Enter filter mode (/)."""
+        list_widget = self.query_one(WorktreeList)
+        list_widget.start_filter()
 
     def _make_custom_handler(self, cmd: CustomCommand):
         """Create a handler function for a custom command."""
