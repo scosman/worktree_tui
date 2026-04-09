@@ -29,6 +29,21 @@ class CustomCommand:
 
 
 @dataclass(frozen=True)
+class WorkspaceWindow:
+    """A tmux window definition for the workspace.
+
+    Attributes:
+        name: Window name (e.g., "agent", "backend").
+        command: Shell command to run in the window.
+        cwd: Optional subdirectory relative to worktree root.
+    """
+
+    name: str
+    command: str
+    cwd: str | None = None
+
+
+@dataclass(frozen=True)
 class WkConfig:
     """Immutable configuration for wk.
 
@@ -38,12 +53,18 @@ class WkConfig:
         restart_workspace_cmd: Shell command to run when restarting a workspace.
             Executed in the worktree directory. None falls back to jump (cd-only).
         custom_commands: Tuple of user-defined custom commands with key bindings.
+        workspace_windows: Tmux window definitions for the workspace pane.
+        workspace_env_script: Script to source before launching workspace.
         repo_root: Absolute path to the git repo root.
     """
 
     open_workspace_cmd: str | None = None
     restart_workspace_cmd: str | None = None
     custom_commands: tuple[CustomCommand, ...] = ()
+    workspace_windows: tuple[WorkspaceWindow, ...] = ()
+    workspace_env_script: str | None = None
+    linear_api_key: str | None = None
+    linear_team_prefix: str | None = None
     repo_root: Path = field(default_factory=lambda: Path("."))
 
 
@@ -126,6 +147,51 @@ def _parse_custom_commands(raw: object) -> tuple[CustomCommand, ...]:
     return tuple(commands)
 
 
+def _parse_workspace_windows(raw: object) -> tuple[WorkspaceWindow, ...]:
+    """Parse the workspace_windows section of the config.
+
+    Args:
+        raw: The raw value from the config file's workspace_windows key.
+
+    Returns:
+        A tuple of WorkspaceWindow objects.
+    """
+    if not raw:
+        return ()
+
+    if not isinstance(raw, dict):
+        raise ConfigError(
+            f"workspace_windows must be a mapping, got {type(raw).__name__}"
+        )
+
+    windows: list[WorkspaceWindow] = []
+    for name, entry in raw.items():
+        if not isinstance(name, str):
+            raise ConfigError(f"workspace_windows: key must be a string, got {name}")
+
+        if isinstance(entry, str):
+            # Short form: just a command string
+            windows.append(WorkspaceWindow(name=name, command=entry))
+        elif isinstance(entry, dict):
+            command = entry.get("command")
+            if not isinstance(command, str):
+                raise ConfigError(
+                    f"workspace_windows['{name}']: missing required field 'command'"
+                )
+            cwd = entry.get("cwd")
+            if cwd is not None and not isinstance(cwd, str):
+                raise ConfigError(
+                    f"workspace_windows['{name}']: 'cwd' must be a string"
+                )
+            windows.append(WorkspaceWindow(name=name, command=command, cwd=cwd))
+        else:
+            raise ConfigError(
+                f"workspace_windows['{name}']: must be a string or mapping"
+            )
+
+    return tuple(windows)
+
+
 def load_config() -> WkConfig:
     """Load .config/wk.yml from the git repo root.
 
@@ -142,6 +208,10 @@ def load_config() -> WkConfig:
     open_cmd: str | None = None
     restart_cmd: str | None = None
     custom_commands: tuple[CustomCommand, ...] = ()
+    workspace_windows: tuple[WorkspaceWindow, ...] = ()
+    workspace_env_script: str | None = None
+    linear_api_key: str | None = None
+    linear_team_prefix: str | None = None
 
     if config_path.exists():
         try:
@@ -161,10 +231,18 @@ def load_config() -> WkConfig:
         open_cmd = data.get("open_workspace_cmd")
         restart_cmd = data.get("restart_workspace_cmd")
         custom_commands = _parse_custom_commands(data.get("custom_commands"))
+        workspace_windows = _parse_workspace_windows(data.get("workspace_windows"))
+        workspace_env_script = data.get("workspace_env_script")
+        linear_api_key = data.get("linear_api_key")
+        linear_team_prefix = data.get("linear_team_prefix")
 
     return WkConfig(
         open_workspace_cmd=open_cmd,
         restart_workspace_cmd=restart_cmd,
         custom_commands=custom_commands,
+        workspace_windows=workspace_windows,
+        workspace_env_script=workspace_env_script,
+        linear_api_key=linear_api_key,
+        linear_team_prefix=linear_team_prefix,
         repo_root=repo_root,
     )

@@ -202,11 +202,11 @@ class TestLaunchCommand:
                     assert exc_info.value.code != 0
 
 
-class TestTuiMode:
-    """Tests for TUI mode (no arguments)."""
+class TestSelectorCommand:
+    """Tests for `wk selector` command."""
 
-    def test_tui_runs_app_and_prints_commands(self) -> None:
-        """`wk` with wrapper should run TUI and print returned commands."""
+    def test_selector_runs_app_in_persistent_mode(self) -> None:
+        """`wk selector` should run TUI in persistent mode."""
         worktrees = [make_worktree(name="feature-1")]
         config = WkConfig(open_workspace_cmd="code .")
 
@@ -214,6 +214,46 @@ class TestTuiMode:
             patch("wk.cli.load_config") as mock_config,
             patch("wk.cli.list_worktrees") as mock_list,
             patch("wk.cli.run_app") as mock_run,
+        ):
+            mock_config.return_value = config
+            mock_list.return_value = worktrees
+            mock_run.return_value = []
+
+            with patch.object(sys, "argv", ["wk", "selector"]):
+                main()
+                mock_run.assert_called_once_with(worktrees, config, persistent=True)
+
+    def test_selector_does_not_require_wrapper(self) -> None:
+        """`wk selector` should not require the shell wrapper."""
+        with (
+            patch("wk.cli.load_config") as mock_config,
+            patch("wk.cli.list_worktrees") as mock_list,
+            patch("wk.cli.run_app") as mock_run,
+        ):
+            mock_config.return_value = WkConfig()
+            mock_list.return_value = []
+            mock_run.return_value = []
+
+            with patch.object(sys, "argv", ["wk", "selector"]):
+                # Should not call is_wrapped or run_setup_flow
+                main()
+                mock_run.assert_called_once()
+
+
+
+class TestTuiMode:
+    """Tests for TUI mode (no arguments)."""
+
+    def test_tui_runs_classic_without_zellij(self) -> None:
+        """`wk` without zellij should run classic TUI."""
+        worktrees = [make_worktree(name="feature-1")]
+        config = WkConfig(open_workspace_cmd="code .")
+
+        with (
+            patch("wk.cli.load_config") as mock_config,
+            patch("wk.cli.list_worktrees") as mock_list,
+            patch("wk.cli.run_app") as mock_run,
+            patch("wk.layout.is_zellij_available", return_value=False),
         ):
             mock_config.return_value = config
             mock_list.return_value = worktrees
@@ -228,15 +268,37 @@ class TestTuiMode:
                             ["cd /project/.worktrees/feature-1", "code ."]
                         )
 
-    def test_tui_empty_commands(self) -> None:
-        """`wk` should handle empty commands (user quit)."""
+    def test_tui_launches_zellij_when_available(self) -> None:
+        """`wk` should launch Zellij dashboard when available."""
+        config = WkConfig(repo_root=Path("/test/repo"))
+
+        with (
+            patch("wk.cli.load_config") as mock_config,
+            patch("wk.layout.is_zellij_available", return_value=True),
+            patch("wk.layout.is_inside_zellij", return_value=False),
+            patch("wk.layout.launch_zellij") as mock_launch,
+        ):
+            mock_config.return_value = config
+            mock_launch.return_value = ["zellij --layout /tmp/x.kdl"]
+
+            with patch.object(sys, "argv", ["wk"]):
+                with patch("wk.cli.is_wrapped", return_value=True):
+                    with patch("wk.cli.print_shell_commands") as mock_print:
+                        main()
+                        mock_launch.assert_called_once_with(config)
+                        mock_print.assert_called_once()
+
+    def test_tui_falls_back_inside_zellij(self) -> None:
+        """`wk` inside Zellij should fall back to classic TUI."""
         worktrees = [make_worktree(name="feature-1")]
-        config = WkConfig(open_workspace_cmd="code .")
+        config = WkConfig()
 
         with (
             patch("wk.cli.load_config") as mock_config,
             patch("wk.cli.list_worktrees") as mock_list,
             patch("wk.cli.run_app") as mock_run,
+            patch("wk.layout.is_zellij_available", return_value=True),
+            patch("wk.layout.is_inside_zellij", return_value=True),
         ):
             mock_config.return_value = config
             mock_list.return_value = worktrees
@@ -244,6 +306,6 @@ class TestTuiMode:
 
             with patch.object(sys, "argv", ["wk"]):
                 with patch("wk.cli.is_wrapped", return_value=True):
-                    with patch("wk.cli.print_shell_commands") as mock_print:
+                    with patch("wk.cli.print_shell_commands"):
                         main()
-                        mock_print.assert_called_once_with([])
+                        mock_run.assert_called_once()

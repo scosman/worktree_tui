@@ -14,6 +14,8 @@ class ThemeColors:
     SELECTED: str = "#44475a"  # Muted purple - Highlighted row
     ERROR: str = "#ff5555"  # Red - Error notifications
     SUCCESS: str = "#50fa7b"  # Green - Success confirmations
+    WARNING: str = "#f1fa8c"  # Yellow - Warnings, ATTACH advice
+    INFO: str = "#8be9fd"  # Cyan - Info, pending status
 
 
 APP_CSS = """
@@ -28,13 +30,12 @@ $error: #ff5555;
 /* App-level */
 Screen {
     background: $background;
-    align: center middle;
 }
 
 /* Worktree list */
 WorktreeList {
     width: 100%;
-    height: 100%;
+    height: 1fr;
 }
 
 WorktreeList > ListItem {
@@ -70,6 +71,20 @@ WorktreeList > ListItem:hover {
     color: $text-dim;
     text-align: right;
     width: auto;
+}
+
+/* Row with status columns */
+.worktree-row-text {
+    width: 1fr;
+}
+
+/* Column header */
+#column-header {
+    color: $text-dim;
+    text-style: bold underline;
+    padding: 0 2;
+    height: 1;
+    width: 100%;
 }
 
 /* Filter indicator */

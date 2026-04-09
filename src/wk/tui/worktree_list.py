@@ -1,5 +1,6 @@
 """Worktree list widget for TUI."""
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from textual.message import Message
@@ -44,11 +45,25 @@ def _relative_time(dt: datetime) -> str:
     return "1 month ago" if months == 1 else f"{months} months ago"
 
 
+@dataclass
+class RowStatus:
+    """Status data for a single worktree row.
+
+    All fields are display strings. Empty string means no data available.
+    """
+
+    ci: str = "—"
+    linear: str = ""
+    agent: str = ""
+    advice: str = ""
+
+
 class WorktreeListItem(ListItem):
     """A single row in the worktree list.
 
     Attributes:
         worktree: The Worktree object for this row, or None for the "New Worktree" row.
+        row_status: Status data for the columns.
     """
 
     DEFAULT_CSS = """
@@ -59,25 +74,55 @@ class WorktreeListItem(ListItem):
     }
     """
 
-    def __init__(self, worktree: Worktree | None) -> None:
+    def __init__(
+        self,
+        worktree: Worktree | None,
+        row_status: RowStatus | None = None,
+    ) -> None:
         """Create a row.
 
         Args:
             worktree: The Worktree to display, or None to create the "New Worktree" row.
+            row_status: Optional status data for columns.
         """
         self.worktree = worktree
+        self.row_status = row_status or RowStatus()
         super().__init__()
 
     def compose(self):
         """Build the row content."""
         if self.worktree is None:
-            # "New Worktree" row
             yield Static("+ New Worktree", classes="new-worktree")
         else:
-            # Worktree row: name on left, time on right
-            time_str = _relative_time(self.worktree.created)
-            yield Static(self.worktree.name, classes="worktree-name")
-            yield Static(time_str, classes="worktree-time")
+            yield Static(self._format_row(), classes="worktree-row-text")
+
+    def _format_row(self) -> str:
+        """Format the row as a fixed-width columnar string."""
+        s = self.row_status
+        wt = self.worktree
+        name = wt.name  # type: ignore[union-attr]
+        if wt.branch in ("main", "master"):  # type: ignore[union-attr]
+            time_str = ""
+        else:
+            time_str = _relative_time(wt.created)  # type: ignore[union-attr]
+        return (
+            f"{name:<28s} "
+            f"{s.linear:<12s} "
+            f"{s.ci:<2s} "
+            f"{s.advice:<10s} "
+            f"{s.agent:<6s} "
+            f"{time_str}"
+        )
+
+    def update_status(self, row_status: RowStatus) -> None:
+        """Update the status data and refresh the display in-place."""
+        self.row_status = row_status
+        if self.worktree is not None:
+            try:
+                label = self.query_one(".worktree-row-text", Static)
+                label.update(self._format_row())
+            except Exception:
+                pass
 
 
 class WorktreeList(ListView):
@@ -106,6 +151,13 @@ class WorktreeList(ListView):
             self.filtering = filtering
             super().__init__()
 
+    class HighlightChanged(Message):
+        """Posted when the highlighted worktree changes."""
+
+        def __init__(self, worktree: Worktree | None) -> None:
+            self.worktree = worktree
+            super().__init__()
+
     def __init__(self, worktrees: list[Worktree]) -> None:
         """Build the list: "New Worktree" row + one row per worktree.
 
@@ -113,19 +165,40 @@ class WorktreeList(ListView):
             worktrees: List of worktrees to display (caller should sort).
         """
         self._all_worktrees = worktrees
+        self._statuses: dict[str, RowStatus] = {}
         self._filter_text = ""
         self._filtering = False
         super().__init__(*self._build_items(), initial_index=self._default_index())
+
+    def update_statuses(self, statuses: dict[str, RowStatus]) -> None:
+        """Update status data for worktrees in-place without rebuilding.
+
+        Args:
+            statuses: Dict mapping worktree name to RowStatus.
+        """
+        self._statuses = statuses
+        # Update existing items in-place instead of rebuilding
+        for child in self.children:
+            if isinstance(child, WorktreeListItem) and child.worktree is not None:
+                status = statuses.get(child.worktree.name)
+                if status:
+                    child.update_status(status)
 
     def _build_items(self) -> list[WorktreeListItem]:
         """Build list items based on current filter state."""
         filtered = self._filtered_worktrees
         # Only show "New Worktree" when not filtering
         if self._filtering:
-            return [WorktreeListItem(wt) for wt in filtered]
+            return [
+                WorktreeListItem(wt, self._statuses.get(wt.name)) for wt in filtered
+            ]
         else:
-            items = [WorktreeListItem(None)]  # "New Worktree" row
-            items.extend(WorktreeListItem(wt) for wt in filtered)
+            items: list[WorktreeListItem] = [
+                WorktreeListItem(None)
+            ]  # "New Worktree" row
+            items.extend(
+                WorktreeListItem(wt, self._statuses.get(wt.name)) for wt in filtered
+            )
             return items
 
     def _default_index(self) -> int:
@@ -176,6 +249,10 @@ class WorktreeList(ListView):
             return None
         # highlighted_child returns ListItem, but we only add WorktreeListItem children
         return getattr(item, "worktree", None)
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        """Post HighlightChanged when the cursor moves."""
+        self.post_message(self.HighlightChanged(self.selected_worktree))
 
     def on_key(self, event) -> None:
         """Handle key events for filtering."""

@@ -27,8 +27,13 @@ from wk.actions import (
     action_restart,
 )
 from wk.config import CustomCommand, WkConfig
+from wk.ipc import Selection, write_selection
+from wk.status.advice import compute_advice
+from wk.status.agent import detect_agent_state_for_session
+from wk.status.ci import CIStatusCache
+from wk.status.linear import LinearStatusCache
 from wk.tui.theme import APP_CSS
-from wk.tui.worktree_list import WorktreeList
+from wk.tui.worktree_list import RowStatus, WorktreeList
 from wk.worktree import Worktree, WtCommandError
 
 
@@ -435,28 +440,45 @@ class WkApp(App):
     shell_commands: list[str]
     _worktrees: list[Worktree]
 
-    def __init__(self, worktrees: list[Worktree], config: WkConfig) -> None:
+    def __init__(
+        self,
+        worktrees: list[Worktree],
+        config: WkConfig,
+        persistent: bool = False,
+    ) -> None:
         super().__init__()
         self.title = random.choice(_WK_TITLES)
         self._worktrees = worktrees
         self._config = config
+        self._persistent = persistent
         self.shell_commands = []
 
         # Store custom commands for lookup
         self._custom_commands = {cmd.key: cmd for cmd in config.custom_commands}
         self._pending_custom_cmd: CustomCommand | None = None
 
+        # Status caches (used in persistent mode)
+        self._ci_cache = CIStatusCache(ttl=30.0)
+        self._linear_cache = LinearStatusCache(ttl=60.0)
+
+        # Per-worktree display state — written by individual workers,
+        # combined into RowStatus by _rebuild_statuses()
+        self._ci_display: dict[str, str] = {}
+        self._linear_display: dict[str, str] = {}
+        self._agent_display: dict[str, str] = {}
+
         bindings = [
-            Binding("q", "quit", "Quit"),
-            Binding("escape", "quit", "Quit", show=False),
-            Binding("slash", "filter", "Filter"),
             Binding("j", "jump", "Jump", show=False),
             Binding("d", "delete", "Delete"),
             Binding("n", "new", "New"),
         ]
-        if config.open_workspace_cmd:
-            bindings.append(Binding("l", "launch", "Launch"))
-        if config.restart_workspace_cmd:
+        if not self._persistent:
+            bindings.insert(0, Binding("q", "quit", "Quit"))
+            bindings.insert(1, Binding("escape", "quit", "Quit", show=False))
+            bindings.insert(2, Binding("slash", "filter", "Filter"))
+            if config.open_workspace_cmd:
+                bindings.append(Binding("l", "launch", "Launch"))
+        if config.restart_workspace_cmd or self._persistent:
             bindings.append(Binding("r", "restart", "Restart"))
 
         # Remove bindings that conflict with custom commands
@@ -478,8 +500,84 @@ class WkApp(App):
         """Build the main screen layout."""
         yield Header()
         yield Static("", id="filter-indicator")
+        if self._persistent:
+            header = (
+                f"{'NAME':<28s} "
+                f"{'STATUS':<12s} "
+                f"{'CI':<2s} "
+                f"{'ADVICE':<10s} "
+                f"{'AGENT':<6s} "
+                f"DATE"
+            )
+            yield Static(header, id="column-header")
         yield WorktreeList(self._worktrees)
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Start periodic status refresh in persistent mode."""
+        if self._persistent:
+            self._refresh_statuses()
+            self.set_interval(30, self._refresh_statuses)
+            self.set_interval(5, self._refresh_agent_status)
+
+    def _refresh_statuses(self) -> None:
+        """Fetch CI status and update the worktree list columns."""
+        self.run_worker(self._fetch_statuses, thread=True, name="status_refresh")
+
+    def _fetch_statuses(self) -> dict[str, RowStatus]:
+        """Background worker: fetch CI + Linear status data."""
+        ci_data = self._ci_cache.get(self._config.repo_root)
+
+        wt_names = [wt.name for wt in self._worktrees]
+        linear_data = self._linear_cache.get(wt_names, self._config.linear_api_key)
+
+        statuses: dict[str, RowStatus] = {}
+        for wt in self._worktrees:
+            if wt.branch in ("main", "master"):
+                statuses[wt.name] = RowStatus(ci="", linear="")
+                continue
+            ci = ci_data.get(wt.branch)
+            linear = linear_data.get(wt.name)
+            statuses[wt.name] = RowStatus(
+                ci=ci.display if ci else "—",
+                linear=linear.state_name if linear else "—",
+            )
+        return statuses
+
+    def _refresh_agent_status(self) -> None:
+        """Fetch agent status more frequently than CI/Linear."""
+        self.run_worker(self._fetch_agent_statuses, thread=True, name="agent_refresh")
+
+    def _fetch_agent_statuses(self) -> dict[str, str]:
+        """Background worker: fetch agent states for all worktrees."""
+        agent_states: dict[str, str] = {}
+        for wt in self._worktrees:
+            if wt.branch in ("main", "master"):
+                continue
+            from wk.layout import tmux_session_name
+
+            session_name = tmux_session_name(wt.name)
+            agent_states[wt.name] = detect_agent_state_for_session(session_name)
+        return agent_states
+
+    def _rebuild_statuses(self) -> None:
+        """Combine per-field display dicts into RowStatus and push to UI."""
+        list_widget = self.query_one(WorktreeList)
+        ci_data = self._ci_cache._cache
+
+        for wt in self._worktrees:
+            ci_str = self._ci_display.get(wt.name, "—")
+            linear_str = self._linear_display.get(wt.name, "—")
+            agent_state = self._agent_display.get(wt.name, "")
+            ci = ci_data.get(wt.branch)
+            advice = compute_advice(ci, agent_state) if agent_state else ""
+            list_widget._statuses[wt.name] = RowStatus(
+                ci=ci_str,
+                linear=linear_str,
+                agent=agent_state,
+                advice=advice,
+            )
+        list_widget.update_statuses(list_widget._statuses)
 
     def on_worktree_list_filter_changed(
         self, event: WorktreeList.FilterChanged
@@ -493,11 +591,37 @@ class WkApp(App):
             indicator.update("")
             indicator.remove_class("visible")
 
+    def on_worktree_list_highlight_changed(
+        self, event: WorktreeList.HighlightChanged
+    ) -> None:
+        """Write selection to IPC when highlight changes in persistent mode."""
+        if self._persistent and event.worktree is not None:
+            write_selection(
+                self._config.repo_root,
+                Selection(
+                    worktree_name=event.worktree.name,
+                    worktree_path=str(event.worktree.path),
+                ),
+            )
+
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle Enter key on the worktree list."""
         worktree = self.query_one(WorktreeList).selected_worktree
         if worktree is None:
             self._show_new_input()
+        elif self._persistent:
+            # In persistent mode, Enter writes selection and switches workspace
+            write_selection(
+                self._config.repo_root,
+                Selection(
+                    worktree_name=worktree.name,
+                    worktree_path=str(worktree.path),
+                ),
+            )
+            # Detach the tmux client so the workspace loop picks up the change
+            from wk.layout import _tmux
+
+            _tmux("detach-client")
         elif self._config.open_workspace_cmd:
             self.shell_commands = action_launch(worktree, self._config)
             self.exit()
@@ -510,6 +634,8 @@ class WkApp(App):
         list_widget = self.query_one(WorktreeList)
         worktree = list_widget.selected_worktree
         if worktree is not None:
+            if self._persistent:
+                return  # No-op in persistent mode (right pane handles workspace)
             self.shell_commands = action_launch(worktree, self._config)
             self.exit()
 
@@ -518,6 +644,8 @@ class WkApp(App):
         list_widget = self.query_one(WorktreeList)
         worktree = list_widget.selected_worktree
         if worktree is not None:
+            if self._persistent:
+                return  # No-op in persistent mode
             self.shell_commands = action_jump(worktree)
             self.exit()
 
@@ -526,6 +654,12 @@ class WkApp(App):
         list_widget = self.query_one(WorktreeList)
         worktree = list_widget.selected_worktree
         if worktree is not None:
+            if self._persistent:
+                from wk.layout import restart_tmux_session, tmux_session_name
+
+                session_name = tmux_session_name(worktree.name)
+                restart_tmux_session(session_name, worktree.path, self._config)
+                return
             self.shell_commands = action_restart(worktree, self._config)
             self.exit()
 
@@ -622,9 +756,13 @@ class WkApp(App):
         if len(self.screen_stack) > 1:
             self.pop_screen()  # Remove loading screen
         if success:
-            # On success, data is always list[str]
-            self.shell_commands = data if isinstance(data, list) else []
-            self.exit()
+            if self._persistent:
+                # Refresh the list instead of exiting
+                self._refresh_worktree_list_async()
+            else:
+                # On success, data is always list[str]
+                self.shell_commands = data if isinstance(data, list) else []
+                self.exit()
         else:
             # On error, data is the error message string
             self._show_error(f"Failed to create worktree: {data}")
@@ -732,10 +870,19 @@ class WkApp(App):
             self._show_error(f"Force delete failed: {error_msg or 'Unknown error'}")
 
     def _refresh_worktree_list(self) -> None:
-        """Replace the worktree list widget with a fresh one."""
+        """Refresh the worktree list in place."""
         list_widget = self.query_one(WorktreeList)
-        list_widget.remove()
-        self.mount(WorktreeList(self._worktrees), after=0)
+        self.run_worker(
+            list_widget.refresh_worktrees(self._worktrees),
+            name="refresh_list",
+        )
+
+    def _refresh_worktree_list_async(self) -> None:
+        """Reload worktrees from disk and refresh the list."""
+        from wk.worktree import list_worktrees
+
+        self._worktrees = list_worktrees()
+        self._refresh_worktree_list()
 
     def _show_error(self, message: str) -> None:
         """Show an error notification."""
@@ -760,14 +907,34 @@ class WkApp(App):
         elif worker.name == "force_delete" and isinstance(result, tuple):
             success, error_msg, worktrees = result
             self._on_force_delete_done(success, error_msg, worktrees)
+        elif worker.name == "status_refresh" and isinstance(result, dict):
+            # Store CI/Linear display strings, then rebuild all rows
+            for name, new in result.items():
+                self._ci_display[name] = new.ci
+                self._linear_display[name] = new.linear
+            self._rebuild_statuses()
+        elif worker.name == "agent_refresh" and isinstance(result, dict):
+            # Store agent states, then rebuild all rows
+            for name, state in result.items():
+                self._agent_display[name] = state
+            self._rebuild_statuses()
 
 
-def run_app(worktrees: list[Worktree], config: WkConfig) -> list[str]:
+def run_app(
+    worktrees: list[Worktree],
+    config: WkConfig,
+    persistent: bool = False,
+) -> list[str]:
     """Convenience function: create and run WkApp, return shell commands.
+
+    Args:
+        worktrees: List of worktrees to display.
+        config: WkConfig for workspace launching.
+        persistent: If True, run in persistent mode (no exit on select).
 
     Returns the shell_commands set by the app (empty list if user quit).
     Note: stdout redirection is handled at the CLI level.
     """
-    app = WkApp(worktrees, config)
+    app = WkApp(worktrees, config, persistent=persistent)
     app.run()
     return app.shell_commands
