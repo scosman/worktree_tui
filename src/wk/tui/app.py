@@ -480,6 +480,10 @@ class WkApp(App):
                 bindings.append(Binding("l", "launch", "Launch"))
         if config.restart_workspace_cmd or self._persistent:
             bindings.append(Binding("r", "restart", "Restart"))
+        if self._persistent:
+            bindings.append(
+                Binding("tab", "focus_workspace", "Focus Workspace", priority=True)
+            )
 
         # Remove bindings that conflict with custom commands
         custom_keys = set(self._custom_commands.keys())
@@ -662,6 +666,15 @@ class WkApp(App):
                 return
             self.shell_commands = action_restart(worktree, self._config)
             self.exit()
+
+    def action_focus_workspace(self) -> None:
+        """Move zellij focus to the workspace pane (Tab)."""
+        import subprocess
+
+        subprocess.run(
+            ["zellij", "action", "move-focus", "right"],
+            check=False,
+        )
 
     def action_delete(self) -> None:
         """Delete selected worktree (d)."""

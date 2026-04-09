@@ -55,6 +55,9 @@ def _write_tmux_conf() -> str:
         "set -g status-style 'bg=colour235 fg=colour245'\n"
         "set -g mouse on\n"
         "set -g default-terminal 'screen-256color'\n"
+        "bind Left previous-window\n"
+        "bind Right next-window\n"
+        "set -g base-index 1\n"
     )
     f.close()
     return f.name
@@ -99,6 +102,12 @@ def launch_zellij(config: WkConfig) -> list[str]:
         layout_path = f.name
 
     return [f"zellij --layout {layout_path} --new-session-with-layout {session_name}"]
+
+
+def _set_pane_title(name: str) -> None:
+    """Set the terminal/pane title using escape sequences."""
+    # Works in zellij, tmux, and most terminal emulators
+    print(f"\x1b]0;{name}\x07", end="", flush=True)
 
 
 def is_inside_zellij() -> bool:
@@ -161,8 +170,11 @@ def _create_tmux_session(
     _tmux("set-option", "-t", session_name, "mouse", "on")
     _tmux("set-option", "-t", session_name, "prefix", "C-a")
     _tmux("set-option", "-t", session_name, "remain-on-exit", "on")
-    # C-a R to respawn a dead pane (server-global binding)
+    _tmux("set-option", "-t", session_name, "base-index", "1")
+    # Server-global key bindings
     _tmux("bind-key", "R", "respawn-pane", "-k")
+    _tmux("bind-key", "Left", "previous-window")
+    _tmux("bind-key", "Right", "next-window")
 
     # Create remaining windows
     for win in windows[1:]:
@@ -191,23 +203,20 @@ def run_workspace_loop(config: WkConfig) -> None:
     Creates/switches tmux sessions as the user selects different
     worktrees in the selector pane.
     """
-    from wk.ipc import read_selection
-    from wk.worktree import list_worktrees
+    import time
+
+    from wk.ipc import clear_state, read_selection
 
     current_session: str | None = None
 
-    # Get initial selection or fall back to first worktree
-    selection = read_selection(config.repo_root)
-    if selection is None:
-        worktrees = list_worktrees()
-        if worktrees:
-            from wk.ipc import Selection, write_selection
-
-            write_selection(
-                config.repo_root,
-                Selection(worktrees[0].name, str(worktrees[0].path)),
-            )
-            selection = read_selection(config.repo_root)
+    # Clear stale selection and wait for the selector to write fresh data
+    clear_state(config.repo_root)
+    selection = None
+    for _ in range(50):  # Wait up to 5 seconds
+        selection = read_selection(config.repo_root)
+        if selection is not None:
+            break
+        time.sleep(0.1)
 
     if selection is None:
         print("No worktrees found.", flush=True)
@@ -220,6 +229,7 @@ def run_workspace_loop(config: WkConfig) -> None:
     if _tmux("has-session", "-t", session_name).returncode != 0:
         _create_tmux_session(session_name, worktree_path, config)
     current_session = session_name
+    _set_pane_title(f"wk workspace - {selection.worktree_name}")
 
     # Attach to tmux — this takes over the terminal
     # We use a loop: when the user detaches (or we detach programmatically),
@@ -246,6 +256,7 @@ def run_workspace_loop(config: WkConfig) -> None:
         if _tmux("has-session", "-t", new_session).returncode != 0:
             _create_tmux_session(new_session, new_path, config)
         current_session = new_session
+        _set_pane_title(f"wk workspace - {selection.worktree_name}")
 
 
 def restart_tmux_session(
