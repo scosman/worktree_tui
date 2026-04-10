@@ -68,7 +68,7 @@ def generate_zellij_layout(config: WkConfig) -> str:
 
     Layout:
     +------------------+------------------------------+
-    |  wk selector     |                              |
+    |  wk hub          |                              |
     |  (40% width)     |   wk workspace               |
     |                  |   (60% width, full height)    |
     |                  |                              |
@@ -80,7 +80,7 @@ def generate_zellij_layout(config: WkConfig) -> str:
 layout {{
     pane split_direction="vertical" {{
         pane size="40%" command="wk" cwd="{cwd}" {{
-            args "selector"
+            args "hub"
         }}
         pane size="60%" command="wk" cwd="{cwd}" {{
             args "workspace"
@@ -172,12 +172,13 @@ def _create_tmux_session(
     _tmux("set-option", "-t", session_name, "remain-on-exit", "on")
     _tmux("set-option", "-t", session_name, "base-index", "1")
     # Hide last-window flag (-) but keep current window flag (*)
+    # Must be global (-g) to override tmux's built-in default
     _tmux(
-        "set-window-option", "-t", session_name,
+        "set-option", "-g",
         "window-status-format", " #I:#W ",
     )
     _tmux(
-        "set-window-option", "-t", session_name,
+        "set-option", "-g",
         "window-status-current-format", " #I:#W* ",
     )
     # Server-global key bindings

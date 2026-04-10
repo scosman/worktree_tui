@@ -32,8 +32,8 @@ def main() -> None:
         if len(argv) < 3 or argv[2] != "zsh":
             _usage_error("Usage: wk init zsh\nOnly zsh is supported.")
         print(generate_wrapper_zsh())
-    elif argv[1] == "selector":
-        # selector: persistent TUI mode (used inside Zellij pane)
+    elif argv[1] in ("selector", "hub"):
+        # hub: persistent TUI mode (used inside Zellij pane)
         _run_selector()
     elif argv[1] == "workspace":
         # workspace: launch tmux session for selected worktree (used inside Zellij pane)

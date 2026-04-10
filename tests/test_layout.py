@@ -21,10 +21,10 @@ class TestGenerateZellijLayout:
         assert "layout {" in layout
         assert 'split_direction="vertical"' in layout
 
-    def test_contains_selector_command(self) -> None:
+    def test_contains_hub_command(self) -> None:
         config = WkConfig(repo_root=Path("/test/repo"))
         layout = generate_zellij_layout(config)
-        assert '"selector"' in layout
+        assert '"hub"' in layout
 
     def test_contains_workspace_command(self) -> None:
         config = WkConfig(repo_root=Path("/test/repo"))
