@@ -171,6 +171,15 @@ def _create_tmux_session(
     _tmux("set-option", "-t", session_name, "prefix", "C-a")
     _tmux("set-option", "-t", session_name, "remain-on-exit", "on")
     _tmux("set-option", "-t", session_name, "base-index", "1")
+    # Hide last-window flag (-) but keep current window flag (*)
+    _tmux(
+        "set-window-option", "-t", session_name,
+        "window-status-format", " #I:#W ",
+    )
+    _tmux(
+        "set-window-option", "-t", session_name,
+        "window-status-current-format", " #I:#W* ",
+    )
     # Server-global key bindings
     _tmux("bind-key", "R", "respawn-pane", "-k")
     _tmux("bind-key", "Left", "previous-window")
@@ -193,7 +202,8 @@ def _create_tmux_session(
             win_cmd,
         )
 
-    # Select the first window
+    # Renumber windows to start from base-index and select the first
+    _tmux("move-window", "-r", "-t", session_name)
     _tmux_check("select-window", "-t", f"{session_name}:{windows[0].name}")
 
 

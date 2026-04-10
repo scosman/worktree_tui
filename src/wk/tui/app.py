@@ -482,7 +482,9 @@ class WkApp(App):
             bindings.append(Binding("r", "restart", "Restart"))
         if self._persistent:
             bindings.append(
-                Binding("tab", "focus_workspace", "Focus Workspace", priority=True)
+                Binding(
+                    "f", "focus_workspace", "Focus Workspace",
+                )
             )
 
         # Remove bindings that conflict with custom commands
