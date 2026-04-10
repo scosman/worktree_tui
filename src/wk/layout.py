@@ -40,27 +40,32 @@ def _tmux_check(*args: str) -> None:
     )
 
 
+_TMUX_CONF = os.path.expanduser("~/.config/wk/tmux.conf")
+
+
 def _write_tmux_conf() -> str:
-    """Write a minimal tmux config and return its path."""
-    f = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".conf", delete=False, prefix="wk-tmux-"
-    )
-    f.write(
-        "set -g prefix C-a\n"
-        "unbind C-b\n"
-        "bind C-a send-prefix\n"
-        "set -g status on\n"
-        "set -g status-left ' '\n"
-        "set -g status-right ''\n"
-        "set -g status-style 'bg=colour235 fg=colour245'\n"
-        "set -g mouse on\n"
-        "set -g default-terminal 'screen-256color'\n"
-        "bind Left previous-window\n"
-        "bind Right next-window\n"
-        "set -g base-index 1\n"
-    )
-    f.close()
-    return f.name
+    """Write tmux config to a stable path and return it."""
+    os.makedirs(os.path.dirname(_TMUX_CONF), exist_ok=True)
+    with open(_TMUX_CONF, "w") as f:
+        f.write(
+            "set -g prefix C-a\n"
+            "unbind C-b\n"
+            "bind C-a send-prefix\n"
+            "set -g status on\n"
+            "set -g status-left ' '\n"
+            "set -g status-right ''\n"
+            "set -g status-style 'bg=colour235 fg=colour245'\n"
+            "set -g mouse on\n"
+            "set -g default-terminal 'screen-256color'\n"
+            "set -g remain-on-exit on\n"
+            "set -g window-status-format ' #I:#W '\n"
+            "set -g window-status-current-format ' #I:#W* '\n"
+            "bind Left previous-window\n"
+            "bind Right next-window\n"
+            "bind R respawn-pane -k\n"
+            "set -g base-index 1\n"
+        )
+    return _TMUX_CONF
 
 
 def generate_zellij_layout(config: WkConfig) -> str:
@@ -93,7 +98,8 @@ layout {{
 def launch_zellij(config: WkConfig) -> list[str]:
     """Write the layout to a temp file and return shell commands."""
     layout_content = generate_zellij_layout(config)
-    session_name = tmux_session_name(config.repo_root.name)
+    session_name = f"wk-{config.repo_root.name}"
+    cwd = str(config.repo_root)
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".kdl", delete=False, prefix="wk-layout-"
@@ -101,7 +107,20 @@ def launch_zellij(config: WkConfig) -> list[str]:
         f.write(layout_content)
         layout_path = f.name
 
-    return [f"zellij --layout {layout_path} --new-session-with-layout {session_name}"]
+    commands: list[str] = []
+
+    # Source env script before launching zellij so all panes inherit env
+    if config.workspace_env_script:
+        env_script = str(config.repo_root / config.workspace_env_script)
+        commands.append(f"cd {cwd} && source {env_script}")
+
+    # Reuse existing session if it exists, otherwise create new
+    commands.append(
+        f"if zellij list-sessions --no-formatting 2>/dev/null | grep -q '^{session_name} '; then"
+        f" zellij attach {session_name};"
+        f" else zellij -s {session_name} --new-session-with-layout {layout_path}; fi"
+    )
+    return commands
 
 
 def _set_pane_title(name: str) -> None:
@@ -115,6 +134,26 @@ def is_inside_zellij() -> bool:
     return "ZELLIJ" in os.environ
 
 
+def _source_env(
+    env_script: str, cwd: str,
+) -> dict[str, str]:
+    """Source the env script in a subprocess and capture exported env vars."""
+    shell = os.environ.get("SHELL", "bash")
+    result = subprocess.run(
+        [shell, "-c", f"cd {cwd} && source {env_script} && env"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    env: dict[str, str] = {}
+    if result.returncode == 0:
+        for line in result.stdout.splitlines():
+            if "=" in line:
+                key, _, val = line.partition("=")
+                env[key] = val
+    return env
+
+
 def _create_tmux_session(
     session_name: str,
     worktree_path: Path,
@@ -123,10 +162,11 @@ def _create_tmux_session(
     """Create a new tmux session with configured windows."""
     cwd = str(worktree_path)
 
-    env_prefix = ""
+    # Source the env script once and capture all env vars
+    extra_env: dict[str, str] = {}
     if config.workspace_env_script:
         env_script = str(config.repo_root / config.workspace_env_script)
-        env_prefix = f"source {env_script} && "
+        extra_env = _source_env(env_script, cwd)
 
     windows = list(config.workspace_windows)
     if not windows:
@@ -134,10 +174,18 @@ def _create_tmux_session(
 
     conf_path = _write_tmux_conf()
 
+    # Build env source prefix — use bash (not zsh) to source the env
+    # script. The old zellij layout used bash for this, and exec $SHELL
+    # from bash correctly inherits PATH into zsh's hash table.
+    env_source = ""
+    if config.workspace_env_script:
+        env_script = str(config.repo_root / config.workspace_env_script)
+        env_source = f"cd {cwd} && source {env_script} && "
+
     # Create session with first window
     first = windows[0]
     first_cwd = str(worktree_path / first.cwd) if first.cwd else cwd
-    first_cmd = f"{env_prefix}{first.command}"
+    first_cmd = f"{env_source}{first.command}"
 
     subprocess.run(
         [
@@ -161,35 +209,19 @@ def _create_tmux_session(
         check=True,
     )
 
-    # Apply session options explicitly (the -f config only takes effect on
-    # server start, so we must set options per-session to be reliable)
-    _tmux("set-option", "-t", session_name, "status", "on")
-    _tmux("set-option", "-t", session_name, "status-left", " ")
-    _tmux("set-option", "-t", session_name, "status-right", "")
-    _tmux("set-option", "-t", session_name, "status-style", "bg=colour235 fg=colour245")
-    _tmux("set-option", "-t", session_name, "mouse", "on")
-    _tmux("set-option", "-t", session_name, "prefix", "C-a")
-    _tmux("set-option", "-t", session_name, "remain-on-exit", "on")
-    _tmux("set-option", "-t", session_name, "base-index", "1")
-    # Hide last-window flag (-) but keep current window flag (*)
-    # Must be global (-g) to override tmux's built-in default
-    _tmux(
-        "set-option", "-g",
-        "window-status-format", " #I:#W ",
-    )
-    _tmux(
-        "set-option", "-g",
-        "window-status-current-format", " #I:#W* ",
-    )
-    # Server-global key bindings
-    _tmux("bind-key", "R", "respawn-pane", "-k")
-    _tmux("bind-key", "Left", "previous-window")
-    _tmux("bind-key", "Right", "next-window")
+    # Set env vars on the tmux session so all windows inherit them
+    for key, val in extra_env.items():
+        _tmux("set-environment", "-t", session_name, key, val)
 
-    # Create remaining windows
+    # Per-session options
+    _tmux("set-option", "-t", session_name, "prefix", "C-a")
+    # Source the conf to ensure global options are set
+    # (-f only works on first server start, not subsequent sessions)
+    _tmux("source-file", conf_path)
+
+    # Create remaining windows — env inherited from tmux session
     for win in windows[1:]:
         win_cwd = str(worktree_path / win.cwd) if win.cwd else cwd
-        win_cmd = f"{env_prefix}{win.command}"
         _tmux_check(
             "new-window",
             "-t",
@@ -200,7 +232,7 @@ def _create_tmux_session(
             win_cwd,
             "bash",
             "-c",
-            win_cmd,
+            win.command,
         )
 
     # Renumber windows to start from base-index and select the first

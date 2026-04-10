@@ -13,8 +13,10 @@ FIX_CI = "FIX_CI"
 REBASE = "REBASE"
 INPUT = "INPUT"
 RESUME = "RESUME"
+BEGIN = "BEGIN"
 REVIEWER = "REVIEWER"
-ADV_WORKING = "WORKING"
+IN_REVIEW = "IN_REVIEW"
+ADV_WORKING = "WAIT"
 VIEW_PR = "VIEW_PR"
 
 
@@ -22,6 +24,7 @@ def compute_advice(
     ci: CIStatus | None,
     agent_state: str,
     has_conflicts: bool = False,
+    linear_state: str = "",
 ) -> str:
     """Compute the recommended next action for a worktree.
 
@@ -59,7 +62,11 @@ def compute_advice(
     if ci and ci.pr_url and not ci.has_reviewer:
         return REVIEWER
 
-    # 6. Claude waiting for user input
+    # 6. PR waiting on reviewer approval
+    if ci and ci.pr_url and ci.has_reviewer and ci.review_decision == "REVIEW_REQUIRED":
+        return IN_REVIEW
+
+    # 7. Claude waiting for user input
     if agent_state == WAITING:
         return INPUT
 
@@ -75,5 +82,9 @@ def compute_advice(
     if ci and ci.pr_url:
         return VIEW_PR
 
-    # 11-12. Disconnected without PR, or nothing matches
+    # 11. Linear ticket in planned state
+    if linear_state.lower() == "planned":
+        return BEGIN
+
+    # 12. Nothing matches
     return ""

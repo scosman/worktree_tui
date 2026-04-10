@@ -88,9 +88,15 @@ def list_worktrees() -> list[Worktree]:
     stdout = _run_wt(["list", "--format", "json"])
     data = json.loads(stdout)
     worktrees = [_parse_worktree(item) for item in data]
-    # Sort by created date descending (most recent first)
-    worktrees.sort(key=lambda w: w.created, reverse=True)
-    return worktrees
+    # Sort: main/master first, then by created date descending
+    worktrees.sort(
+        key=lambda w: (w.branch not in ("main", "master"), w.created),
+        reverse=True,
+    )
+    # Move main/master back to the front (reverse flipped it to the end)
+    main = [w for w in worktrees if w.branch in ("main", "master")]
+    rest = [w for w in worktrees if w.branch not in ("main", "master")]
+    return main + rest
 
 
 def create_worktree(name: str) -> Worktree:

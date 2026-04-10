@@ -49,6 +49,19 @@ def detect_agent_state(pane_output: str) -> str:
         after = matches[-1].group(1)
         if _HAS_CONTENT_RE.match(after):
             return WAITING
+        # Check if a recent line before the prompt ends with ?
+        # Look back up to 5 non-empty lines for a question
+        before_lines = clean[: matches[-1].start()].splitlines()
+        checked = 0
+        for line in reversed(before_lines):
+            stripped = line.rstrip()
+            if not stripped:
+                continue
+            if stripped.endswith("?"):
+                return WAITING
+            checked += 1
+            if checked >= 5:
+                break
         return IDLE
 
     return OFF

@@ -570,7 +570,9 @@ class WkApp(App):
             linear_str = self._linear_display.get(wt.name, "—")
             agent_state = self._agent_display.get(wt.name, "")
             ci = ci_data.get(wt.branch)
-            advice = compute_advice(ci, agent_state) if agent_state else ""
+            advice = compute_advice(
+                ci, agent_state, linear_state=linear_str,
+            ) if agent_state else ""
             list_widget._statuses[wt.name] = RowStatus(
                 ci=ci_str,
                 linear=linear_str,
@@ -605,29 +607,31 @@ class WkApp(App):
             )
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Handle Enter key on the worktree list."""
+        """Handle Enter/click on the worktree list."""
         worktree = self.query_one(WorktreeList).selected_worktree
         if worktree is None:
             self._show_new_input()
         elif self._persistent:
-            # In persistent mode, Enter writes selection and switches workspace
-            write_selection(
-                self._config.repo_root,
-                Selection(
-                    worktree_name=worktree.name,
-                    worktree_path=str(worktree.path),
-                ),
-            )
-            # Detach the tmux client so the workspace loop picks up the change
-            from wk.layout import _tmux
-
-            _tmux("detach-client")
+            self._switch_to_worktree(worktree)
         elif self._config.open_workspace_cmd:
             self.shell_commands = action_launch(worktree, self._config)
             self.exit()
         else:
             self.shell_commands = action_jump(worktree)
             self.exit()
+
+    def _switch_to_worktree(self, worktree: Worktree) -> None:
+        """Switch the workspace pane to the given worktree."""
+        write_selection(
+            self._config.repo_root,
+            Selection(
+                worktree_name=worktree.name,
+                worktree_path=str(worktree.path),
+            ),
+        )
+        from wk.layout import _tmux
+
+        _tmux("detach-client")
 
     def action_launch(self) -> None:
         """Launch selected worktree (l) - always runs open_workspace_cmd."""
@@ -872,10 +876,8 @@ class WkApp(App):
     def _refresh_worktree_list(self) -> None:
         """Refresh the worktree list in place."""
         list_widget = self.query_one(WorktreeList)
-        self.run_worker(
-            list_widget.refresh_worktrees(self._worktrees),
-            name="refresh_list",
-        )
+        list_widget._all_worktrees = self._worktrees
+        list_widget._refresh_list(select_first=False)
 
     def _refresh_worktree_list_async(self) -> None:
         """Reload worktrees from disk and refresh the list."""

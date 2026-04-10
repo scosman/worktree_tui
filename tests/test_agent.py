@@ -37,6 +37,18 @@ class TestDetectAgentState:
         assert detect_agent_state("❯ 1. Yes") == WAITING
         assert detect_agent_state("❯ Do you want to proceed?") == WAITING
 
+    def test_waiting_question_before_prompt(self) -> None:
+        """Should detect question mark before bare ❯ as WAITING."""
+        output = "Do the changes look good?\n\n❯"
+        assert detect_agent_state(output) == WAITING
+        output = "looks good?\n✻ Worked for 2m\n\n❯"
+        assert detect_agent_state(output) == WAITING
+
+    def test_no_question_before_prompt(self) -> None:
+        """No question mark before bare ❯ should be IDLE."""
+        output = "All done.\n\n❯"
+        assert detect_agent_state(output) == IDLE
+
     def test_idle_bare_prompt(self) -> None:
         """Should detect bare ❯ as IDLE."""
         assert detect_agent_state("❯") == IDLE
