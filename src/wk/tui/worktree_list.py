@@ -94,23 +94,25 @@ class WorktreeListItem(ListItem):
         if self.worktree is None:
             yield Static("+ New Worktree", classes="new-worktree")
         else:
-            yield Static(self._format_row(), classes="worktree-row-text")
+            yield Static(
+                self._format_row(), classes="worktree-row-text"
+            )
 
     def _format_row(self) -> str:
         """Format the row as a fixed-width columnar string."""
         s = self.row_status
         wt = self.worktree
-        name = wt.name  # type: ignore[union-attr]
+        name = (wt.name or "")[:20]  # type: ignore[union-attr]
         if wt.branch in ("main", "master"):  # type: ignore[union-attr]
             time_str = ""
         else:
             time_str = _relative_time(wt.created)  # type: ignore[union-attr]
         return (
-            f"{name:<28s} "
-            f"{s.linear:<12s} "
+            f"{name:<20s} "
+            f"{s.linear:<8s} "
             f"{s.ci:<2s} "
-            f"{s.advice:<10s} "
-            f"{s.agent:<6s} "
+            f"{s.advice:<9s} "
+            f"{s.agent:<5s} "
             f"{time_str}"
         )
 
@@ -168,7 +170,10 @@ class WorktreeList(ListView):
         self._statuses: dict[str, RowStatus] = {}
         self._filter_text = ""
         self._filtering = False
-        super().__init__(*self._build_items(), initial_index=self._default_index())
+        items = self._build_items()
+        # Default to first worktree (skip "+ New Worktree" row)
+        initial = 1 if len(items) > 1 else 0
+        super().__init__(*items, initial_index=initial)
 
     def update_statuses(self, statuses: dict[str, RowStatus]) -> None:
         """Update status data for worktrees in-place without rebuilding.
@@ -203,10 +208,10 @@ class WorktreeList(ListView):
 
     def _default_index(self) -> int:
         """Return default index: first worktree if available, else 0."""
-        items = self._build_items()
         if self._filtering:
-            return 0 if items else 0
-        return 1 if len(items) > 1 else 0
+            return 0
+        # Skip the "+ New Worktree" row if worktrees exist
+        return 1 if self._filtered_worktrees else 0
 
     @property
     def _filtered_worktrees(self) -> list[Worktree]:
@@ -230,12 +235,12 @@ class WorktreeList(ListView):
         """Whether currently in filter mode."""
         return self._filtering
 
-    def start_filter(self) -> None:
+    async def start_filter(self) -> None:
         """Enter filter mode (called by app action)."""
         if not self._filtering:
             self._filtering = True
             self._filter_text = ""
-            self._refresh_list(select_first=True)
+            await self._refresh_list(select_first=True)
             self.post_message(self.FilterChanged(self._filter_text, self._filtering))
 
     @property
@@ -254,7 +259,7 @@ class WorktreeList(ListView):
         """Post HighlightChanged when the cursor moves."""
         self.post_message(self.HighlightChanged(self.selected_worktree))
 
-    def on_key(self, event) -> None:
+    async def on_key(self, event) -> None:
         """Handle key events for filtering."""
         key = event.key
 
@@ -263,7 +268,7 @@ class WorktreeList(ListView):
             event.stop()
             self._filtering = True
             self._filter_text = ""
-            self._refresh_list(select_first=True)
+            await self._refresh_list(select_first=True)
             self.post_message(self.FilterChanged(self._filter_text, self._filtering))
             return
 
@@ -275,7 +280,7 @@ class WorktreeList(ListView):
             event.stop()
             self._filtering = False
             self._filter_text = ""
-            self._refresh_list(select_first=False)
+            await self._refresh_list(select_first=False)
             self.post_message(self.FilterChanged(self._filter_text, self._filtering))
             return
 
@@ -284,10 +289,10 @@ class WorktreeList(ListView):
             event.stop()
             if self._filter_text:
                 self._filter_text = self._filter_text[:-1]
-                self._refresh_list(select_first=True)
+                await self._refresh_list(select_first=True)
             else:
                 self._filtering = False
-                self._refresh_list(select_first=False)
+                await self._refresh_list(select_first=False)
             self.post_message(self.FilterChanged(self._filter_text, self._filtering))
             return
 
@@ -295,10 +300,10 @@ class WorktreeList(ListView):
         if len(key) == 1 and key.isprintable():
             event.stop()
             self._filter_text += key
-            self._refresh_list(select_first=True)
+            await self._refresh_list(select_first=True)
             self.post_message(self.FilterChanged(self._filter_text, self._filtering))
 
-    def _refresh_list(self, select_first: bool = False) -> None:
+    async def _refresh_list(self, select_first: bool = False) -> None:
         """Rebuild the list based on current filter.
 
         Args:
@@ -307,15 +312,15 @@ class WorktreeList(ListView):
         # Store current selection if not selecting first
         current_worktree = None if select_first else self.selected_worktree
 
-        # Clear and rebuild
-        self.clear()
+        # Clear and rebuild — must await to ensure old items are removed
+        # before appending new ones (prevents duplicates)
+        await self.clear()
 
         items = self._build_items()
         for item in items:
             self.append(item)
 
         if select_first:
-            # Select first item
             self.index = 0 if items else 0
         elif current_worktree is not None:
             # Try to restore selection by name
@@ -338,20 +343,4 @@ class WorktreeList(ListView):
             worktrees: New list of worktrees to display.
         """
         self._all_worktrees = worktrees
-        await self._refresh_list_async()
-
-    async def _refresh_list_async(self) -> None:
-        """Async version of _refresh_list for use after delete."""
-        current_worktree = self.selected_worktree
-        await self.clear()
-
-        items = self._build_items()
-        for item in items:
-            self.append(item)
-
-        if current_worktree is not None:
-            for i, item in enumerate(items):
-                if item.worktree and item.worktree.name == current_worktree.name:
-                    self.index = i
-                    return
-        self.index = self._default_index()
+        await self._refresh_list()

@@ -68,13 +68,15 @@ def _parse_worktree(data: dict) -> Worktree:
     else:
         created = datetime.now()
 
-    # Use branch as name if name not present
-    name = data.get("name") or data.get("branch", "")
+    # Use branch as name if name not present. `get(..., "")` doesn't help
+    # when the key exists with value null — coerce explicitly.
+    name = data.get("name") or data.get("branch") or ""
+    branch = data.get("branch") or name
 
     return Worktree(
         name=name,
         path=Path(data["path"]),
-        branch=data.get("branch", name),
+        branch=branch,
         created=created,
     )
 

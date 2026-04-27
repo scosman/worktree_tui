@@ -480,6 +480,8 @@ class WkApp(App):
                 bindings.append(Binding("l", "launch", "Launch"))
         if config.restart_workspace_cmd or self._persistent:
             bindings.append(Binding("r", "restart", "Restart"))
+        if self._persistent:
+            bindings.append(Binding("R", "refresh", "Refresh"))
 
         # Remove bindings that conflict with custom commands
         custom_keys = set(self._custom_commands.keys())
@@ -502,11 +504,11 @@ class WkApp(App):
         yield Static("", id="filter-indicator")
         if self._persistent:
             header = (
-                f"{'NAME':<28s} "
-                f"{'STATUS':<12s} "
+                f"{'NAME':<20s} "
+                f"{'STATUS':<8s} "
                 f"{'CI':<2s} "
-                f"{'ADVICE':<10s} "
-                f"{'AGENT':<6s} "
+                f"{'ADVICE':<9s} "
+                f"{'AGENT':<5s} "
                 f"DATE"
             )
             yield Static(header, id="column-header")
@@ -519,46 +521,70 @@ class WkApp(App):
             self._refresh_statuses()
             self.set_interval(30, self._refresh_statuses)
             self.set_interval(5, self._refresh_agent_status)
+            self.set_interval(30, self._refresh_worktree_list_worker)
 
     def _refresh_statuses(self) -> None:
         """Fetch CI status and update the worktree list columns."""
         self.run_worker(self._fetch_statuses, thread=True, name="status_refresh")
 
     def _fetch_statuses(self) -> dict[str, RowStatus]:
-        """Background worker: fetch CI + Linear status data."""
-        ci_data = self._ci_cache.get(self._config.repo_root)
+        """Background worker: fetch CI + Linear status data.
 
-        wt_names = [wt.name for wt in self._worktrees]
-        linear_data = self._linear_cache.get(wt_names, self._config.linear_api_key)
+        Wrapped in try/except so transient network errors don't crash
+        the TUI — Textual treats an unhandled worker exception as fatal.
+        """
+        try:
+            ci_data = self._ci_cache.get(self._config.repo_root)
 
-        statuses: dict[str, RowStatus] = {}
-        for wt in self._worktrees:
-            if wt.branch in ("main", "master"):
-                statuses[wt.name] = RowStatus(ci="", linear="")
-                continue
-            ci = ci_data.get(wt.branch)
-            linear = linear_data.get(wt.name)
-            statuses[wt.name] = RowStatus(
-                ci=ci.display if ci else "—",
-                linear=linear.state_name if linear else "—",
-            )
-        return statuses
+            wt_names = [wt.name for wt in self._worktrees]
+            linear_data = self._linear_cache.get(wt_names, self._config.linear_api_key)
+
+            statuses: dict[str, RowStatus] = {}
+            for wt in self._worktrees:
+                if wt.branch in ("main", "master"):
+                    statuses[wt.name] = RowStatus(ci="", linear="")
+                    continue
+                ci = ci_data.get(wt.branch)
+                linear = linear_data.get(wt.name)
+                statuses[wt.name] = RowStatus(
+                    ci=ci.display if ci else "—",
+                    linear=linear.state_name if linear else "—",
+                )
+            return statuses
+        except Exception:
+            return {}
 
     def _refresh_agent_status(self) -> None:
         """Fetch agent status more frequently than CI/Linear."""
         self.run_worker(self._fetch_agent_statuses, thread=True, name="agent_refresh")
 
+    def _refresh_worktree_list_worker(self) -> None:
+        """Reload the worktree list from disk in a background thread."""
+        self.run_worker(self._fetch_worktree_list, thread=True, name="list_refresh")
+
+    def _fetch_worktree_list(self) -> list[Worktree] | None:
+        """Background worker: reload worktrees via `wt list`."""
+        from wk.worktree import list_worktrees
+
+        try:
+            return list_worktrees()
+        except Exception:
+            return None
+
     def _fetch_agent_statuses(self) -> dict[str, str]:
         """Background worker: fetch agent states for all worktrees."""
-        agent_states: dict[str, str] = {}
-        for wt in self._worktrees:
-            if wt.branch in ("main", "master"):
-                continue
-            from wk.layout import tmux_session_name
+        try:
+            agent_states: dict[str, str] = {}
+            for wt in self._worktrees:
+                if wt.branch in ("main", "master"):
+                    continue
+                from wk.layout import tmux_session_name
 
-            session_name = tmux_session_name(wt.name)
-            agent_states[wt.name] = detect_agent_state_for_session(session_name)
-        return agent_states
+                session_name = tmux_session_name(wt.name)
+                agent_states[wt.name] = detect_agent_state_for_session(session_name)
+            return agent_states
+        except Exception:
+            return {}
 
     def _rebuild_statuses(self) -> None:
         """Combine per-field display dicts into RowStatus and push to UI."""
@@ -570,9 +596,15 @@ class WkApp(App):
             linear_str = self._linear_display.get(wt.name, "—")
             agent_state = self._agent_display.get(wt.name, "")
             ci = ci_data.get(wt.branch)
-            advice = compute_advice(
-                ci, agent_state, linear_state=linear_str,
-            ) if agent_state else ""
+            advice = (
+                compute_advice(
+                    ci,
+                    agent_state,
+                    linear_state=linear_str,
+                )
+                if agent_state
+                else ""
+            )
             list_widget._statuses[wt.name] = RowStatus(
                 ci=ci_str,
                 linear=linear_str,
@@ -683,6 +715,10 @@ class WkApp(App):
         list_widget = self.query_one(WorktreeList)
         list_widget.start_filter()
 
+    def action_refresh(self) -> None:
+        """Reload the worktree list from disk (R)."""
+        self._refresh_worktree_list_worker()
+
     def _make_custom_handler(self, cmd: CustomCommand):
         """Create a handler function for a custom command."""
 
@@ -754,7 +790,7 @@ class WkApp(App):
         except WtCommandError as e:
             return (False, e.stderr.strip())
 
-    def _on_create_done(self, success: bool, data: list[str] | str) -> None:
+    async def _on_create_done(self, success: bool, data: list[str] | str) -> None:
         """Handle create worker completion on main thread."""
         # Only pop if we have more than just the base screen
         if len(self.screen_stack) > 1:
@@ -762,7 +798,7 @@ class WkApp(App):
         if success:
             if self._persistent:
                 # Refresh the list instead of exiting
-                self._refresh_worktree_list_async()
+                await self._refresh_worktree_list_async()
             else:
                 # On success, data is always list[str]
                 self.shell_commands = data if isinstance(data, list) else []
@@ -812,7 +848,7 @@ class WkApp(App):
         except WtCommandError as e:
             return (False, e.stderr.strip(), None)
 
-    def _on_delete_done(
+    async def _on_delete_done(
         self, success: bool, error_msg: str | None, worktrees: list[Worktree] | None
     ) -> None:
         """Handle delete worker completion on main thread."""
@@ -823,7 +859,7 @@ class WkApp(App):
             # worktrees is never None on success
             if worktrees is not None:
                 self._worktrees = worktrees
-                self._refresh_worktree_list()
+                await self._refresh_worktree_list()
         else:
             # error_msg is never None on failure
             self._show_delete_error(
@@ -858,7 +894,7 @@ class WkApp(App):
         except WtCommandError as e:
             return (False, e.stderr.strip(), None)
 
-    def _on_force_delete_done(
+    async def _on_force_delete_done(
         self, success: bool, error_msg: str | None, worktrees: list[Worktree] | None
     ) -> None:
         """Handle force delete worker completion on main thread."""
@@ -869,28 +905,28 @@ class WkApp(App):
             # worktrees is never None on success
             if worktrees is not None:
                 self._worktrees = worktrees
-                self._refresh_worktree_list()
+                await self._refresh_worktree_list()
         else:
             self._show_error(f"Force delete failed: {error_msg or 'Unknown error'}")
 
-    def _refresh_worktree_list(self) -> None:
+    async def _refresh_worktree_list(self) -> None:
         """Refresh the worktree list in place."""
         list_widget = self.query_one(WorktreeList)
         list_widget._all_worktrees = self._worktrees
-        list_widget._refresh_list(select_first=False)
+        await list_widget._refresh_list(select_first=False)
 
-    def _refresh_worktree_list_async(self) -> None:
+    async def _refresh_worktree_list_async(self) -> None:
         """Reload worktrees from disk and refresh the list."""
         from wk.worktree import list_worktrees
 
         self._worktrees = list_worktrees()
-        self._refresh_worktree_list()
+        await self._refresh_worktree_list()
 
     def _show_error(self, message: str) -> None:
         """Show an error notification."""
         self.push_screen(ErrorNotificationScreen(message))
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+    async def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
         worker = event.worker
         if worker.state != WorkerState.SUCCESS:
@@ -902,13 +938,13 @@ class WkApp(App):
 
         if worker.name == "create" and isinstance(result, tuple):
             success, data = result
-            self._on_create_done(success, data)
+            await self._on_create_done(success, data)
         elif worker.name == "delete" and isinstance(result, tuple):
             success, error_msg, worktrees = result
-            self._on_delete_done(success, error_msg, worktrees)
+            await self._on_delete_done(success, error_msg, worktrees)
         elif worker.name == "force_delete" and isinstance(result, tuple):
             success, error_msg, worktrees = result
-            self._on_force_delete_done(success, error_msg, worktrees)
+            await self._on_force_delete_done(success, error_msg, worktrees)
         elif worker.name == "status_refresh" and isinstance(result, dict):
             # Store CI/Linear display strings, then rebuild all rows
             for name, new in result.items():
@@ -920,6 +956,21 @@ class WkApp(App):
             for name, state in result.items():
                 self._agent_display[name] = state
             self._rebuild_statuses()
+        elif worker.name == "list_refresh" and isinstance(result, list):
+            await self._on_list_refresh_done(result)
+
+    async def _on_list_refresh_done(self, new_list: list[Worktree]) -> None:
+        """Reconcile a freshly-fetched worktree list with the current UI."""
+        old_keys = {(w.name, str(w.path)) for w in self._worktrees}
+        new_keys = {(w.name, str(w.path)) for w in new_list}
+        if old_keys == new_keys:
+            return
+        self._worktrees = new_list
+        await self._refresh_worktree_list()
+        # Set of worktrees changed — kick fresh status fetches so newly
+        # added entries don't sit on stale "—" placeholders for 30s.
+        self._refresh_statuses()
+        self._refresh_agent_status()
 
 
 def run_app(

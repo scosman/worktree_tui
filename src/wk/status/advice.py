@@ -3,7 +3,7 @@
 Returns a recommended next action for each worktree, based on priority rules.
 """
 
-from wk.status.agent import IDLE, OFF, WAITING, WORKING
+from wk.status.agent import IDLE, WAITING, WORKING
 from wk.status.ci import CIStatus
 
 # Advice values (in priority order)

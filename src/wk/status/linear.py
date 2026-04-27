@@ -130,7 +130,7 @@ def _fetch_issue_states(api_key: str, ticket_ids: list[str]) -> dict[str, str]:
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read())
-    except (urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+    except (urllib.error.URLError, json.JSONDecodeError, OSError):
         return {}
 
     results: dict[str, str] = {}

@@ -55,6 +55,7 @@ WorktreeList > ListItem:hover {
 .new-worktree {
     color: $accent;
     text-style: bold;
+    height: 1;
 }
 
 /* Worktree item layout */
@@ -76,6 +77,9 @@ WorktreeList > ListItem:hover {
 /* Row with status columns */
 .worktree-row-text {
     width: 1fr;
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 /* Column header */
