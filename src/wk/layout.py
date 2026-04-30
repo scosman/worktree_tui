@@ -1,12 +1,16 @@
 """Zellij layout generation and tmux session management."""
 
+import json
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from wk.config import WkConfig, WorkspaceWindow
+from wk.ipc import _state_dir
 
 # Isolated tmux socket name so our config doesn't affect user's tmux
 _TMUX_SOCKET = "wk"
@@ -135,7 +139,8 @@ def is_inside_zellij() -> bool:
 
 
 def _source_env(
-    env_script: str, cwd: str,
+    env_script: str,
+    cwd: str,
 ) -> dict[str, str]:
     """Source the env script in a subprocess and capture exported env vars."""
     shell = os.environ.get("SHELL", "bash")
@@ -239,6 +244,12 @@ def _create_tmux_session(
     _tmux("move-window", "-r", "-t", session_name)
     _tmux_check("select-window", "-t", f"{session_name}:{windows[0].name}")
 
+    # Record the pane PGIDs so restart can kill orphaned children later,
+    # even after the pane shell dies and they get reparented to launchd.
+    _save_session_pgids(
+        config.repo_root, session_name, _capture_session_pgids(session_name)
+    )
+
 
 def run_workspace_loop(config: WkConfig) -> None:
     """Run the workspace pane: watch IPC and manage tmux sessions.
@@ -252,10 +263,12 @@ def run_workspace_loop(config: WkConfig) -> None:
 
     current_session: str | None = None
 
-    # Clear stale selection and wait for the selector to write fresh data
+    # Clear stale selection and wait for the selector to write fresh data.
+    # Hub seeds the initial selection on mount, but we wait generously here
+    # so a cold-start TUI on a slow system doesn't lose the race.
     clear_state(config.repo_root)
     selection = None
-    for _ in range(50):  # Wait up to 5 seconds
+    for _ in range(300):  # Wait up to 30 seconds
         selection = read_selection(config.repo_root)
         if selection is not None:
             break
@@ -302,12 +315,186 @@ def run_workspace_loop(config: WkConfig) -> None:
         _set_pane_title(f"wk workspace - {selection.worktree_name}")
 
 
+def _descendant_pids(pid: int) -> list[int]:
+    """Return all descendant PIDs of `pid` (recursive)."""
+    result = subprocess.run(
+        ["pgrep", "-P", str(pid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    children = [int(p) for p in result.stdout.split() if p.strip()]
+    out = list(children)
+    for c in children:
+        out.extend(_descendant_pids(c))
+    return out
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _pgid_alive(pgid: int) -> bool:
+    """Return True if any process is still in the given process group."""
+    result = subprocess.run(
+        ["pgrep", "-g", str(pgid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _get_pgid(pid: int) -> int | None:
+    """Look up the process group ID of `pid` via ps."""
+    result = subprocess.run(
+        ["ps", "-o", "pgid=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    raw = result.stdout.strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
+
+def _capture_session_pgids(session_name: str) -> list[int]:
+    """Return the PGID of each pane shell in the session."""
+    result = _tmux("list-panes", "-s", "-t", session_name, "-F", "#{pane_pid}")
+    if result.returncode != 0:
+        return []
+    pgids: list[int] = []
+    for raw in result.stdout.split():
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            pid = int(raw)
+        except ValueError:
+            continue
+        pgid = _get_pgid(pid)
+        if pgid is not None and pgid not in pgids:
+            pgids.append(pgid)
+    return pgids
+
+
+def _pgids_state_path(repo_root: Path, session_name: str) -> Path:
+    return _state_dir(repo_root) / f"pgids-{session_name}.json"
+
+
+def _save_session_pgids(repo_root: Path, session_name: str, pgids: list[int]) -> None:
+    if not pgids:
+        return
+    path = _pgids_state_path(repo_root, session_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(pgids))
+
+
+def _load_session_pgids(repo_root: Path, session_name: str) -> list[int]:
+    path = _pgids_state_path(repo_root, session_name)
+    try:
+        data = json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    return [int(p) for p in data if isinstance(p, int)]
+
+
+def _clear_session_pgids(repo_root: Path, session_name: str) -> None:
+    path = _pgids_state_path(repo_root, session_name)
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _terminate_session_processes(
+    repo_root: Path,
+    session_name: str,
+    grace_seconds: float = 2.0,
+) -> None:
+    """Kill all processes belonging to the session, including orphans.
+
+    tmux's `kill-session` sends SIGHUP to the pane shell, which some wrappers
+    (npm/uv/etc.) don't propagate to children. When the backend dies and the
+    pane is marked dead (`remain-on-exit`), the orphaned children get
+    reparented to launchd, so a descendant walk from the pane PID misses them.
+    Saved PGIDs catch the orphans because PG membership survives reparenting.
+    """
+    pids: list[int] = []
+    pgids: list[int] = list(_load_session_pgids(repo_root, session_name))
+
+    result = _tmux("list-panes", "-s", "-t", session_name, "-F", "#{pane_pid}")
+    if result.returncode == 0:
+        for raw in result.stdout.split():
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                pid = int(raw)
+            except ValueError:
+                continue
+            pids.append(pid)
+            pids.extend(_descendant_pids(pid))
+
+    if not pids and not pgids:
+        return
+
+    for pgid in pgids:
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+    deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < deadline:
+        if not any(_pid_alive(p) for p in pids) and not any(
+            _pgid_alive(g) for g in pgids
+        ):
+            break
+        time.sleep(0.1)
+
+    for pgid in pgids:
+        if _pgid_alive(pgid):
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+    for pid in pids:
+        if _pid_alive(pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+    _clear_session_pgids(repo_root, session_name)
+
+
 def restart_tmux_session(
     session_name: str,
     worktree_path: Path,
     config: WkConfig,
 ) -> None:
     """Kill and recreate a tmux session, then detach for reattach."""
+    _terminate_session_processes(config.repo_root, session_name)
     _tmux("kill-session", "-t", session_name)
     _create_tmux_session(session_name, worktree_path, config)
     _tmux("detach-client")

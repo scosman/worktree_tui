@@ -518,6 +518,20 @@ class WkApp(App):
     def on_mount(self) -> None:
         """Start periodic status refresh in persistent mode."""
         if self._persistent:
+            # Write the initial selection so the workspace pane has something
+            # to attach to without waiting for the user to move the cursor.
+            # Textual's ListView.Highlighted only fires on cursor *change*,
+            # not on initial mount, so we have to seed it ourselves.
+            if self._worktrees:
+                first = self._worktrees[0]
+                write_selection(
+                    self._config.repo_root,
+                    Selection(
+                        worktree_name=first.name,
+                        worktree_path=str(first.path),
+                    ),
+                )
+
             self._refresh_statuses()
             self.set_interval(30, self._refresh_statuses)
             self.set_interval(5, self._refresh_agent_status)

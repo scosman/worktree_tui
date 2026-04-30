@@ -1,5 +1,6 @@
 """Worktree list widget for TUI."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -94,9 +95,7 @@ class WorktreeListItem(ListItem):
         if self.worktree is None:
             yield Static("+ New Worktree", classes="new-worktree")
         else:
-            yield Static(
-                self._format_row(), classes="worktree-row-text"
-            )
+            yield Static(self._format_row(), classes="worktree-row-text")
 
     def _format_row(self) -> str:
         """Format the row as a fixed-width columnar string."""
@@ -170,6 +169,9 @@ class WorktreeList(ListView):
         self._statuses: dict[str, RowStatus] = {}
         self._filter_text = ""
         self._filtering = False
+        # Serializes _refresh_list. Without it, two concurrent refreshes can
+        # each clear() a 0-item list and then both append, producing duplicates.
+        self._refresh_lock = asyncio.Lock()
         items = self._build_items()
         # Default to first worktree (skip "+ New Worktree" row)
         initial = 1 if len(items) > 1 else 0
@@ -309,29 +311,24 @@ class WorktreeList(ListView):
         Args:
             select_first: If True, select first item. Otherwise preserve selection.
         """
-        # Store current selection if not selecting first
-        current_worktree = None if select_first else self.selected_worktree
+        async with self._refresh_lock:
+            current_worktree = None if select_first else self.selected_worktree
 
-        # Clear and rebuild — must await to ensure old items are removed
-        # before appending new ones (prevents duplicates)
-        await self.clear()
+            await self.clear()
+            items = self._build_items()
+            if items:
+                await self.extend(items)
 
-        items = self._build_items()
-        for item in items:
-            self.append(item)
-
-        if select_first:
-            self.index = 0 if items else 0
-        elif current_worktree is not None:
-            # Try to restore selection by name
-            for i, item in enumerate(items):
-                if item.worktree and item.worktree.name == current_worktree.name:
-                    self.index = i
-                    return
-            # Fall back to default
-            self.index = self._default_index()
-        else:
-            self.index = self._default_index()
+            if select_first:
+                self.index = 0 if items else 0
+            elif current_worktree is not None:
+                for i, item in enumerate(items):
+                    if item.worktree and item.worktree.name == current_worktree.name:
+                        self.index = i
+                        return
+                self.index = self._default_index()
+            else:
+                self.index = self._default_index()
 
     async def refresh_worktrees(self, worktrees: list[Worktree]) -> None:
         """Replace the list contents with a new set of worktrees.
