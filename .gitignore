@@ -10,3 +10,5 @@ __pycache__/
 .coverage
 **/.venv
 **/*.egg-info
+
+.specs_skill_state/
