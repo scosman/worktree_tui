@@ -61,7 +61,8 @@ has to give, and it is the zellij layer. Details in [Conflict 1](#conflict-1-zel
 | `herdr-sessionizer` | Fuzzy-open projects/worktrees into declarative TOML layouts, per-repo overrides | Yes — your TUI's job |
 
 That is worth sitting with: the parts of `wk` that are *worktree list + launch a per-project
-layout* are already claimed, several times over, by the herdr plugin ecosystem.
+layout* already exist, several times over, in the herdr plugin ecosystem — so that's code you may
+be able to simply not write.
 
 ### Docker Sandboxes (`sbx`)
 
@@ -135,7 +136,15 @@ at `MAIN_REPO/.git/worktrees/<name>`. So:
   and all your uncommitted host work. That is issue #154, and it means **worktree + sandbox today
   gives you less isolation than the marketing implies**.
 
-Two clean resolutions:
+**How bad is the leak, exactly?** It is bounded by the mount. The blast radius is *the git project*:
+the main checkout, sibling worktrees, and uncommitted work in them. The rest of the host filesystem
+— `~/.ssh`, `~/Documents`, other repos — stays unreachable, because sbx mounts only the workspace
+and the microVM has no other view of the host. Credentials are held on the host side of the proxy
+rather than inside the VM. So the honest summary is: **a worktree is not isolated from its own
+project, but the project is still isolated from everything else.** If project-level blast radius is
+acceptable, this stops being a blocker and becomes a footnote.
+
+Two clean resolutions if you ever want tighter than that:
 
 - **(a) Sandbox the repo root; do worktrees inside the sandbox.** One microVM per project, `wt`
   and all worktrees live inside it. Git works normally, worktrunk hooks work normally, isolation
@@ -162,36 +171,40 @@ If a herdr pane runs `sbx run claude`, what does the sidebar show?
 So the honest expectation is **degraded-but-working status**: `HERDR_AGENT` + screen manifests get
 you working/blocked/idle; you lose the crisp hook-driven transitions unless the socket is bridged.
 
-Bridging it is very plausible and is arguably *the* unclaimed piece of engineering in this whole
-stack: forward the herdr socket into the sandbox (a mount, or an in-VM shim that calls back to the
-host over a published port), install the herdr hook inside the sandbox template, and point it at
-the shim. If `wk` is going to justify its existence, this is a strong candidate for what it owns.
+Bridging it looks very doable if the degraded version turns out to annoy you: forward the herdr
+socket into the sandbox (a mount, or an in-VM shim that calls back to the host over a published
+port), install the herdr hook inside the sandbox template, and point it at the shim. Worth trying
+the degraded version first — screen manifests may be entirely good enough in practice.
 
 ---
 
-## 3. One thing that gets *easier*: ports
+## 3. Ports: the same problem, moved somewhere better
 
-Today `wk` generates unique ports per worktree so parallel workspaces don't collide.
+Today you generate unique ports per worktree so parallel workspaces don't collide.
 
-With one sandbox per worktree, **each sandbox has its own network namespace**. Every workspace can
-use the canonical `3000` / `8000` *inside* the VM, and uniqueness only has to exist on the host
-side of `sbx ports --publish <unique-host-port>:3000`. Your port-allocation logic moves from
-"rewrite the project's config per worktree" to "pick a free host port and publish it" — strictly
-simpler, and it stops leaking into project config files.
+With one sandbox per worktree, **each sandbox has its own network namespace**. So the *inside* port
+can be fixed and canonical — every worktree's backend is `8000`, every frontend is `3000`, and the
+project's own config never changes per worktree. But you still need **unique host ports**, because
+you open the web app in a browser on the host. The allocation logic doesn't go away; it moves from
+"rewrite the project's config per worktree" to "pick free host ports and publish them", which is
+the better place for it.
 
-Two gotchas to own:
+Gotchas to own:
 
 1. Dev servers must bind `0.0.0.0`, not `127.0.0.1`, or publishing does nothing. Most default to
-   `127.0.0.1`. This will be the #1 support question.
-2. **Published ports do not survive a sandbox stop/restart.** Something has to re-publish them —
-   a natural job for `wk`'s existing restart action.
+   `127.0.0.1`.
+2. **Published ports do not survive a sandbox stop/restart.** Something has to re-publish them.
+
+**Nice-to-have (P2):** declare N *named* ports in config, allocate + publish them on workspace
+start, and print the resulting host URLs in the terminal as clickable links. Worth deciding whether
+this belongs here or stays in a single project's config — it's generic enough to live in the tool.
 
 ---
 
 ## 4. Where does `wk` land?
 
 Given the plugin ecosystem already covers "list worktrees + launch a per-project layout", the
-interesting question is what is genuinely unclaimed. Three options:
+question is how little you can get away with writing. Three options:
 
 **Option A — `wk` becomes a herdr plugin.** *(recommended)*
 herdr owns multiplexing, state, persistence, remote. worktrunk (via `herdr-worktrunk`, or your own
@@ -213,10 +226,9 @@ Drop worktree management and layouts entirely (herdr plugins do those); `wk` is 
 - Pro: smallest possible surface, no overlap with anything.
 - Con: it's a thin enough tool that it may not need to be a tool.
 
-**Recommendation: A**, scoped tightly. The parts of the current project with durable value are the
-*sandbox lifecycle + port story + boundary state bridge* — none of which herdr or sbx does today,
-and all of which are needed to make the other two work together. The worktree-list TUI is the part
-the ecosystem has already replaced.
+**Recommendation: A**, scoped tightly. The parts worth keeping are *sandbox lifecycle + ports +
+(maybe) the boundary state bridge* — the things neither herdr nor sbx does, and the things needed
+to make them work together. The worktree-list TUI is the part herdr already gives you.
 
 ---
 
@@ -290,7 +302,7 @@ ports at publish time and tells you where they landed. The unique-port generatio
 | Shell wrapper (`__WK_WRAPPED`, stdout-eval `cd`) | **Deleted** — herdr owns pane cwd; no parent-shell `cd` needed |
 | `wt` wrapping / worktree CRUD | **Delegated** — herdr worktree events, worktrunk still does setup hooks |
 | `open_workspace_cmd` / `restart_workspace_cmd` | **Becomes** the declarative `layout:` block |
-| Unique port generation | **Deleted** — replaced by host-side `sbx ports --publish` |
+| Unique port generation | **Adapted** — same allocation, now applied to host ports via `sbx ports --publish`; the in-sandbox port becomes fixed |
 | `custom_commands` | **Kept** — maps to plugin `actions` in `herdr-plugin.toml` |
 | — | **New:** sandbox lifecycle, port publish/re-publish on restart, network policy, state bridge |
 
