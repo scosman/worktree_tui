@@ -1,5 +1,5 @@
 ---
-status: draft
+status: complete
 ---
 
 # Functional Spec: wk v2 — a herdr Docker Sandbox plugin
@@ -113,7 +113,8 @@ and **re-publishes ports**, because published ports do not survive a sandbox res
 - Print the port assignments at workspace startup, as clickable terminal links (OSC 8 hyperlinks,
   plain URLs where unsupported).
 - Inject the assignments as env vars into everything run through `wk exec`, so `echo $WEB_PORT`
-  works. Per name: `WEB_PORT` (host port) and `WEB_URL` (`http://localhost:<hostport>`).
+  works. Per name three vars: `WEB_PORT` (host port), `WEB_URL` (`http://localhost:<hostport>`),
+  and `WEB` as an alias of the URL, so `open $WEB` works.
 
 ### F3. `wk exec` — the sandbox shim
 
