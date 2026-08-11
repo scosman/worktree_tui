@@ -22,15 +22,17 @@ Each phase ends with `./checks.sh` green.
       implementation, `Fake`), `internal/gitutil`, `internal/herdr`. Includes the test asserting no
       `exec.Command` outside `internal/sandbox` and `internal/gitutil`.
 
-- [ ] **Phase 4: `wk up` / `down` / `status`.** The provisioning flow: phase-marker write, create
-      vs start, `setup:` commands, network allow-list, port allocation and publishing, failure
-      recording. Flow tests against the fakes.
+- [ ] **Phase 4: `wk up` / `down` / `status`.** The provisioning flow: fast path, claim `flock`,
+      phase-marker write, create vs start, `setup:` commands, network allow-list, port allocation
+      and publishing, failure recording. Flow tests against the fakes, including idempotency —
+      `wk up` runs three times for one creation and must converge, not duplicate.
 
 - [ ] **Phase 5: `wk exec`.** Phase polling with backoff, fast-fail on `Failed`, TTY passthrough,
       exit-code propagation, `HERDR_AGENT` mapping. The no-host-fallback invariant is tested here.
 
-- [ ] **Phase 6: CLI surface, packaging, ergonomics.** `wk ports`, `wk doctor`, `wk gc`;
-      `herdr-plugin.toml`; README covering install and layout-plugin interop (`wk exec -- CMD`).
+- [ ] **Phase 6: CLI surface, packaging, ergonomics.** `wk ports`, `wk doctor`, `wk rm`, `wk gc`;
+      `herdr-plugin.toml` with all four event hooks; README covering install and layout-plugin
+      interop (`wk exec -- CMD`).
       Then the P2 items: startup port printing with OSC 8 links, port env injection
       (`NAME` / `NAME_PORT` / `NAME_URL`), and `127.0.0.1` dead-link detection.
 

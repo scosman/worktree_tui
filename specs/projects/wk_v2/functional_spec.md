@@ -49,8 +49,9 @@ doesn't know about sandboxes.
 ## Core Flow
 
 1. User runs `herdr worktree create my-feature` (or uses herdr's worktree UI).
-2. herdr creates the worktree, makes a workspace for it, fires `worktree.created`.
-3. `wk` receives the event and:
+2. herdr creates the worktree, makes a workspace for it, and fires events — which differ by
+   creation path, so `wk` hooks several and converges (see architecture).
+3. `wk` receives an event and:
    a. reads `<repo>/.config/wk.yml`
    b. creates a sandbox for this worktree (mount, resources, network policy)
    c. runs the project's `setup:` commands inside the sandbox (once, on create)
@@ -59,8 +60,9 @@ doesn't know about sandboxes.
 4. The layout plugin opens its configured tabs/panes; each command runs via `wk exec`.
 5. User navigates panes by keyboard and sees agent state in herdr's sidebar.
 
-`worktree.opened` on an existing worktree does the same minus (c): it starts the sandbox if stopped
-and **re-publishes ports**, because published ports do not survive a sandbox restart.
+On an already-provisioned worktree the same entry point converges instead: it starts the sandbox if
+stopped and **re-publishes ports**, because published ports do not survive a sandbox restart. This
+runs on workspace focus, so a sandbox that died is repaired the next time you look at it.
 
 ## Features
 
@@ -182,6 +184,8 @@ The plugin is also a CLI (herdr plugins invoke their own binary; the herdr CLI *
 | `wk exec -- CMD` | Run CMD inside this worktree's sandbox (F3) |
 | `wk up` | Create/start sandbox, publish ports — what `worktree.created`/`opened` calls |
 | `wk down` | Stop this worktree's sandbox |
+| `wk rm [path]` | Tear down the sandbox for a removed worktree — what `worktree.removed` calls |
+| `wk gc` | Remove sandboxes whose worktree no longer exists (safety net) |
 | `wk ports` | Print current assignments; re-publish if needed |
 | `wk status` | Sandbox state, resources, published ports for this worktree |
 | `wk doctor` | Verify `herdr` and `sbx` are installed and the plugin is linked |
@@ -213,14 +217,39 @@ Failure handling is opinionated toward *never silently degrading isolation*:
 - Non-Claude agents beyond the generic `HERDR_AGENT` mapping
 - Windows support (Linux/macOS only, following sbx availability)
 
+## Resolved Questions
+
+1. **Default command wrapper / shell per workspace?** No — herdr's terminal defaults (shell
+   executable, shell mode, cwd policy) are **global config**, not per-workspace. Overriding the
+   shell globally to sandbox panes would hit every project and every pane, which is far too blunt.
+   **Decision: the explicit `wk exec --` prefix stands, and `wk shell-init` stays deferred.**
+
+2. **Worktree removed event?** Yes — `worktree.removed`. Important caveat: **it fires after the
+   worktree directory is already deleted**, so the handler cannot resolve identity from the path on
+   disk and must look it up from recorded state. `wk`'s state file already stores that mapping.
+
+3. **Hooks on `herdr worktree create`?** Events are the only entry point — but the event set is
+   **not uniform across creation paths**, which is the significant finding:
+
+   | Creation path | Events emitted |
+   |---|---|
+   | `herdr worktree create` (CLI) | `worktree.created` + `workspace.created` |
+   | herdr UI "new worktree" | **only `workspace.focused`** |
+
+   Hooking `worktree.created` alone means **worktrees created from the herdr UI never get a
+   sandbox** — and the UI is the path most likely to be used day to day. This changes the design;
+   see architecture.
+
+4. **Is `sbx ssh` stable?** Yes — SSH is in stable releases (`sbx setup ssh`, and v0.38.0 carries
+   SSH session fixes), not nightly-only. Not adopted for v1: `wk exec` is already specified and
+   works, and switching the execution mechanism is a bigger change than the marginal gain in
+   process detection. Recorded as a future option.
+
+5. **sbx Linux support?** Partial: **Arm Linux from sbx 0.33+**, using KVM, requiring Ubuntu 24.04+
+   on aarch64 on bare metal. macOS and Windows remain the primary platforms. Fine for a
+   macOS-first personal tool; noted in case this ever needs to run on a Linux box.
+
 ## Open Questions
 
-1. Can herdr set a **default command wrapper / shell per workspace**? If yes, `wk` sandboxes every
-   pane transparently and layout configs lose the `wk exec --` prefix.
-2. Does herdr fire a **worktree removed/closed** event? If not, sandbox cleanup is manual or polled,
-   and stale sandboxes accumulate.
-3. Does `herdr worktree create` expose **hooks** for post-create work, or is `worktree.created` the
-   only entry point?
-4. Is `sbx ssh` in a **stable** release? If so, an alternative to `wk exec` exists where the agent is
-   genuinely the foreground process inside the VM, restoring native process detection.
-5. Confirm sbx **Linux** support status.
+None blocking. Remaining verification is behavioural — how noisy `workspace.focused` is in practice,
+and whether screen-manifest agent detection through `sbx` is good enough in daily use (F4).

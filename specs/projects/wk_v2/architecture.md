@@ -123,8 +123,9 @@ names, and two different repos with the same basename.
 
 ### State
 
-One JSON file per worktree at `$XDG_STATE_HOME/wk/<sandbox-name>.json` (default
-`~/.local/state/wk/`). Never inside the repo.
+One JSON file per worktree at `<state-dir>/<sandbox-name>.json`, where `<state-dir>` is
+`$HERDR_PLUGIN_STATE_DIR` when set (herdr provides it to plugins) and `$XDG_STATE_HOME/wk`
+otherwise, defaulting to `~/.local/state/wk/`. Never inside the repo.
 
 ```go
 type State struct {
@@ -151,8 +152,10 @@ Unknown `Version` → treat as absent and re-provision, rather than misparsing.
 
 ## Key Flows
 
-### `wk up` (invoked by `worktree.created` / `worktree.opened`)
+### `wk up` (invoked by all four creation-ish events — see Plugin Integration)
 
+0. **Fast path.** State `Ready` + sandbox `Running` + all ports still published → exit 0. Then take
+   the claim `flock`; re-read state and re-check, since another run may have just finished.
 1. Resolve identity. No config file → exit 0 silently (repo not wk-managed).
 2. Load + validate config. Invalid → write `Phase: Failed` with the message, exit 2.
 3. Write state `Phase: Provisioning` **before doing anything slow.** This is what lets panes that
@@ -219,7 +222,12 @@ critical path is the point.
 
 ## Plugin Integration
 
-`herdr-plugin.toml` declares event hooks mapping to the binary:
+herdr's worktree events are **not uniform across creation paths** (functional spec, Resolved Q3):
+the CLI emits `worktree.created` + `workspace.created`, while the herdr UI's "new worktree" emits
+**only `workspace.focused`**. Hooking `worktree.created` alone would silently skip every
+UI-created worktree.
+
+So `wk` hooks all three creation-ish events plus removal:
 
 ```toml
 [[hooks]]
@@ -227,13 +235,45 @@ on = "worktree.created"
 run = "wk up"
 
 [[hooks]]
-on = "worktree.opened"
+on = "workspace.created"
 run = "wk up"
+
+[[hooks]]
+on = "workspace.focused"
+run = "wk up"
+
+[[hooks]]
+on = "worktree.removed"
+run = "wk rm"
 ```
 
-Per herdr's docs, unknown event names produce a warning at link time rather than a failure, so an
-event name that turns out to be wrong degrades to "hook never fires" — detectable via `wk doctor`,
-which reports whether the plugin is linked and which hooks herdr acknowledges.
+This is only viable because **`wk up` is idempotent by construction** — it inspects sandbox status
+and converges. Three events for one creation is three convergent runs, not three sandboxes. That is
+a happier position than a layout plugin, which must dedupe to avoid re-arranging panes.
+
+Two mechanisms make it safe:
+
+- **Fast path.** `wk up` first does a cheap check: state `Ready`, sandbox `Running`, all ports still
+  published → exit 0 immediately. This is the overwhelmingly common case, because
+  `workspace.focused` fires on ordinary focus changes, not just creation. Target: no `sbx` calls
+  beyond a single `Status`.
+- **Claim lock.** Concurrent `wk up` runs for the same sandbox serialise on an exclusive `flock`
+  over `<state-dir>/<sandbox-name>.lock`. The loser re-reads state after acquiring and takes the
+  fast path.
+
+**Deliberately not deduping the way other plugins do.** The git-worktree-hooks plugin guesses at
+"is this a fresh worktree?" by checking for a 1-tab/1-pane workspace. `wk` needs no such heuristic:
+converging on every focus event is *correct*, and it means a sandbox that died or a port that got
+unpublished is repaired the next time you focus the workspace. Re-publishing on focus is a feature,
+given published ports do not survive a sandbox restart.
+
+`wk rm` (on `worktree.removed`) cannot resolve identity from the working directory, because the
+event fires **after** the worktree directory is deleted. It takes the path from the event payload
+and looks up the sandbox via recorded state. `wk gc` remains the safety net for any removal that
+never fired an event.
+
+Unknown event names produce a link-time warning rather than a failure, so a wrong name degrades to
+"hook never fires" — `wk doctor` reports which hooks herdr acknowledges.
 
 herdr is invoked through `HERDR_BIN_PATH` (not a hardcoded `herdr`), per herdr's plugin guidance.
 
